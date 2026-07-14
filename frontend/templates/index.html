@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BlockFusion — Blockchain Ledger Dashboard</title>
+<meta name="description" content="BlockFusion: a secure blockchain ledger system with RSA cryptography and Proof-of-Work mining.">
+
+<!-- Bootstrap 5 -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+<!-- Bootstrap Icons -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<!-- Google Fonts: Space Grotesk (display) + IBM Plex Sans (body) + JetBrains Mono (data) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+
+<!-- ============ ANIMATED BACKGROUND LAYERS ============ -->
+<div class="bg-layer">
+  <canvas id="networkCanvas"></canvas>
+  <div class="bg-grid"></div>
+  <div class="bg-glow bg-glow-1"></div>
+  <div class="bg-glow bg-glow-2"></div>
+</div>
+
+<!-- ============ TOASTS ============ -->
+<div class="toast-container position-fixed top-0 end-0 p-3" id="toastContainer" style="z-index:1080"></div>
+
+<!-- ============ TOP NAVBAR ============ -->
+<nav class="navbar navbar-expand-lg navbar-dark sticky-top bf-navbar">
+  <div class="container-fluid px-3 px-lg-4">
+    <button class="btn bf-icon-btn d-lg-none me-2" id="sidebarToggle" aria-label="Toggle navigation">
+      <i class="bi bi-list"></i>
+    </button>
+    <a class="navbar-brand bf-brand" href="#hero">
+      <span class="bf-logo-mark"><i class="bi bi-hexagon-fill"></i></span>
+      <span class="bf-brand-text">Block<span class="bf-accent">Fusion</span></span>
+    </a>
+
+    <div class="d-flex align-items-center order-lg-3 gap-2">
+      <span class="bf-net-pill d-none d-md-inline-flex" id="navNetworkPill">
+        <span class="bf-dot bf-dot-live"></span> Mainnet Sim
+      </span>
+      <button class="btn bf-icon-btn" id="refreshBtn" title="Refresh now">
+        <i class="bi bi-arrow-clockwise" id="refreshIcon"></i>
+      </button>
+      <a href="https://github.com" target="_blank" rel="noopener" class="btn bf-icon-btn d-none d-sm-inline-flex" title="GitHub">
+        <i class="bi bi-github"></i>
+      </a>
+    </div>
+
+    <div class="collapse navbar-collapse order-lg-2" id="navMain">
+      <ul class="navbar-nav mx-auto mt-3 mt-lg-0 bf-nav-links">
+        <li class="nav-item"><a class="nav-link active" href="#hero">Overview</a></li>
+        <li class="nav-item"><a class="nav-link" href="#explorer">Explorer</a></li>
+        <li class="nav-item"><a class="nav-link" href="#wallet">Wallet</a></li>
+        <li class="nav-item"><a class="nav-link" href="#transactions">Transactions</a></li>
+        <li class="nav-item"><a class="nav-link" href="#mining">Mining</a></li>
+        <li class="nav-item"><a class="nav-link" href="#analytics">Analytics</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<div class="bf-shell">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="bf-sidebar" id="sidebar">
+    <div class="bf-sidebar-section">
+      <p class="bf-sidebar-label">Navigate</p>
+      <a href="#hero" class="bf-side-link active" data-target="hero"><i class="bi bi-grid-1x2-fill"></i><span>Overview</span></a>
+      <a href="#explorer" class="bf-side-link" data-target="explorer"><i class="bi bi-search"></i><span>Explorer</span></a>
+      <a href="#wallet" class="bf-side-link" data-target="wallet"><i class="bi bi-wallet2"></i><span>Wallet</span></a>
+      <a href="#transactions" class="bf-side-link" data-target="transactions"><i class="bi bi-arrow-left-right"></i><span>Transactions</span></a>
+      <a href="#mining" class="bf-side-link" data-target="mining"><i class="bi bi-cpu-fill"></i><span>Mining</span></a>
+      <a href="#analytics" class="bf-side-link" data-target="analytics"><i class="bi bi-bar-chart-fill"></i><span>Analytics</span></a>
+      <a href="#recent" class="bf-side-link" data-target="recent"><i class="bi bi-clock-history"></i><span>Recent Activity</span></a>
+    </div>
+
+    <div class="bf-sidebar-section">
+      <p class="bf-sidebar-label">System</p>
+      <div class="bf-status-mini">
+        <div class="bf-status-mini-row"><span class="bf-dot bf-dot-live"></span>API<span class="ms-auto" id="mini-api">—</span></div>
+        <div class="bf-status-mini-row"><span class="bf-dot bf-dot-live"></span>Database<span class="ms-auto" id="mini-db">—</span></div>
+        <div class="bf-status-mini-row"><span class="bf-dot bf-dot-live"></span>Chain<span class="ms-auto" id="mini-chain">—</span></div>
+      </div>
+    </div>
+
+    <div class="bf-sidebar-footer">
+      <div class="bf-sidebar-card">
+        <i class="bi bi-shield-lock-fill"></i>
+        <p>RSA + SHA-256<br>Secured Ledger</p>
+      </div>
+    </div>
+  </aside>
+  <div class="bf-sidebar-backdrop" id="sidebarBackdrop"></div>
+
+  <!-- ============ MAIN CONTENT ============ -->
+  <main class="bf-main">
+
+    <!-- ============ HERO ============ -->
+    <section id="hero" class="bf-hero">
+      <div class="bf-hero-content">
+        <span class="bf-eyebrow"><span class="bf-dot bf-dot-live"></span> Proof-of-Work Network Online</span>
+        <h1 class="bf-hero-title">Block<span class="bf-accent">Fusion</span></h1>
+        <p class="bf-hero-subtitle">Secure blockchain ledger with RSA cryptography and Proof-of-Work mining.</p>
+        <p class="bf-hero-desc">A self-hosted ledger engine built on Flask and SQLite — every block sealed with SHA-256, every transaction signed with RSA.</p>
+        <div class="bf-hero-actions">
+          <a href="#mining" class="btn bf-btn-primary btn-lg"><i class="bi bi-lightning-charge-fill"></i> Start Mining</a>
+          <a href="#explorer" class="btn bf-btn-ghost btn-lg"><i class="bi bi-search"></i> Explore Chain</a>
+        </div>
+      </div>
+      <div class="bf-hero-visual" aria-hidden="true">
+        <div class="bf-node-ring">
+          <div class="bf-node-core"><i class="bi bi-hexagon-fill"></i></div>
+          <div class="bf-node bf-node-1"><i class="bi bi-box-fill"></i></div>
+          <div class="bf-node bf-node-2"><i class="bi bi-key-fill"></i></div>
+          <div class="bf-node bf-node-3"><i class="bi bi-cpu-fill"></i></div>
+          <div class="bf-node bf-node-4"><i class="bi bi-wallet2"></i></div>
+          <div class="bf-node bf-node-5"><i class="bi bi-diagram-3-fill"></i></div>
+          <div class="bf-node bf-node-6"><i class="bi bi-shield-lock-fill"></i></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ STATS CARDS ============ -->
+    <section class="bf-section" id="stats">
+      <div class="row g-3 g-lg-4">
+        <div class="col-6 col-lg-3">
+          <div class="bf-card bf-stat-card fade-up" style="--delay:0ms">
+            <div class="bf-stat-icon bf-stat-icon-cyan"><i class="bi bi-box-seam-fill"></i></div>
+            <div>
+              <p class="bf-stat-label">Total Blocks</p>
+              <h3 class="bf-stat-value" id="stat-blocks"><span class="bf-skeleton-line"></span></h3>
+              <span class="bf-stat-trend" id="stat-blocks-trend">&nbsp;</span>
+            </div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="bf-card bf-stat-card fade-up" style="--delay:80ms">
+            <div class="bf-stat-icon bf-stat-icon-purple"><i class="bi bi-arrow-left-right"></i></div>
+            <div>
+              <p class="bf-stat-label">Total Transactions</p>
+              <h3 class="bf-stat-value" id="stat-tx"><span class="bf-skeleton-line"></span></h3>
+              <span class="bf-stat-trend" id="stat-tx-trend">&nbsp;</span>
+            </div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="bf-card bf-stat-card fade-up" style="--delay:160ms">
+            <div class="bf-stat-icon bf-stat-icon-green"><i class="bi bi-wallet2"></i></div>
+            <div>
+              <p class="bf-stat-label">Active Wallets</p>
+              <h3 class="bf-stat-value" id="stat-wallets"><span class="bf-skeleton-line"></span></h3>
+              <span class="bf-stat-trend" id="stat-wallets-trend">&nbsp;</span>
+            </div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="bf-card bf-stat-card fade-up" style="--delay:240ms">
+            <div class="bf-stat-icon bf-stat-icon-amber"><i class="bi bi-hdd-network-fill"></i></div>
+            <div>
+              <p class="bf-stat-label">Network Status</p>
+              <h3 class="bf-stat-value bf-stat-value-sm" id="stat-network"><span class="bf-skeleton-line"></span></h3>
+              <span class="bf-stat-trend" id="stat-network-trend">&nbsp;</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ BLOCKCHAIN EXPLORER ============ -->
+    <section class="bf-section" id="explorer">
+      <div class="bf-section-head">
+        <div>
+          <p class="bf-section-eyebrow">Ledger</p>
+          <h2 class="bf-section-title">Blockchain Explorer</h2>
+        </div>
+        <div class="bf-search-box">
+          <i class="bi bi-search"></i>
+          <input type="number" min="0" class="form-control" id="blockSearchInput" placeholder="Search by block index…">
+          <button class="btn bf-btn-primary btn-sm" id="blockSearchBtn">Search</button>
+          <button class="btn bf-btn-ghost btn-sm" id="blockSearchClear">Clear</button>
+        </div>
+      </div>
+
+      <div class="bf-card bf-glass">
+        <div class="table-responsive">
+          <table class="table bf-table align-middle mb-0">
+            <thead>
+              <tr>
+                <th style="width:40px"></th>
+                <th>Index</th>
+                <th>Timestamp</th>
+                <th>Proof</th>
+                <th>Previous Hash</th>
+                <th class="text-end">Transactions</th>
+              </tr>
+            </thead>
+            <tbody id="blockTableBody">
+              <!-- populated by JS -->
+            </tbody>
+          </table>
+        </div>
+        <div class="bf-empty-state d-none" id="explorerEmpty">
+          <i class="bi bi-inboxes"></i>
+          <p>No blocks match that index.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ WALLET SECTION ============ -->
+    <section class="bf-section" id="wallet">
+      <div class="bf-section-head">
+        <div>
+          <p class="bf-section-eyebrow">Identity</p>
+          <h2 class="bf-section-title">Wallet</h2>
+        </div>
+        <button class="btn bf-btn-primary" id="createWalletBtn">
+          <span class="btn-label"><i class="bi bi-plus-circle-fill"></i> Create Wallet</span>
+          <span class="btn-spinner d-none"><span class="spinner-border spinner-border-sm"></span> Generating…</span>
+        </button>
+      </div>
+
+      <div class="row g-3 g-lg-4">
+        <div class="col-lg-6">
+          <div class="bf-card bf-glass h-100">
+            <div class="bf-key-head">
+              <i class="bi bi-unlock-fill bf-key-icon-cyan"></i>
+              <span>Public Key</span>
+            </div>
+            <div class="bf-key-box">
+              <code id="publicKeyOut">No wallet generated yet.</code>
+            </div>
+            <div class="bf-key-actions">
+              <button class="btn bf-btn-ghost btn-sm" data-copy-target="publicKeyOut"><i class="bi bi-clipboard"></i> Copy</button>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-6">
+          <div class="bf-card bf-glass h-100">
+            <div class="bf-key-head">
+              <i class="bi bi-lock-fill bf-key-icon-purple"></i>
+              <span>Private Key</span>
+            </div>
+            <div class="bf-key-box">
+              <code id="privateKeyOut">No wallet generated yet.</code>
+            </div>
+            <div class="bf-key-actions">
+              <button class="btn bf-btn-ghost btn-sm" data-copy-target="privateKeyOut"><i class="bi bi-clipboard"></i> Copy</button>
+              <button class="btn bf-btn-ghost btn-sm" id="downloadWalletBtn" disabled><i class="bi bi-download"></i> Download JSON</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="bf-hint"><i class="bi bi-info-circle"></i> Store your private key offline. BlockFusion never persists it server-side.</p>
+    </section>
+
+    <!-- ============ TRANSACTION SECTION ============ -->
+    <section class="bf-section" id="transactions">
+      <div class="bf-section-head">
+        <div>
+          <p class="bf-section-eyebrow">Transfer</p>
+          <h2 class="bf-section-title">New Transaction</h2>
+        </div>
+      </div>
+
+      <div class="row g-3 g-lg-4">
+        <div class="col-lg-7">
+          <form class="bf-card bf-glass" id="txForm" novalidate>
+            <div class="mb-3">
+              <label class="bf-label" for="txSender">Sender Public Key</label>
+              <textarea class="form-control bf-input bf-mono" id="txSender" rows="2" placeholder="Paste sender public key…" required></textarea>
+            </div>
+            <div class="mb-3">
+              <label class="bf-label" for="txRecipient">Recipient Public Key</label>
+              <textarea class="form-control bf-input bf-mono" id="txRecipient" rows="2" placeholder="Paste recipient public key…" required></textarea>
+            </div>
+            <div class="row g-3">
+              <div class="col-sm-6">
+                <label class="bf-label" for="txAmount">Amount</label>
+                <input type="number" step="any" min="0" class="form-control bf-input" id="txAmount" placeholder="0.00" required>
+              </div>
+              <div class="col-sm-6">
+                <label class="bf-label" for="txSignature">Signature</label>
+                <input type="text" class="form-control bf-input bf-mono" id="txSignature" placeholder="Transaction signature…" required>
+              </div>
+            </div>
+            <div class="bf-form-actions">
+              <button type="submit" class="btn bf-btn-primary" id="txSubmitBtn">
+                <span class="btn-label"><i class="bi bi-send-fill"></i> Submit Transaction</span>
+                <span class="btn-spinner d-none"><span class="spinner-border spinner-border-sm"></span> Sending…</span>
+              </button>
+              <button type="button" class="btn bf-btn-ghost" id="txClearBtn"><i class="bi bi-x-circle"></i> Clear Form</button>
+            </div>
+          </form>
+        </div>
+        <div class="col-lg-5">
+          <div class="bf-card bf-glass h-100 bf-tip-card">
+            <i class="bi bi-lightbulb-fill"></i>
+            <h5>How signing works</h5>
+            <p>Every transaction is signed with the sender's private RSA key and verified against their public key before entering the mempool. Tampered payloads are rejected before they ever reach a block.</p>
+            <div class="bf-tip-divider"></div>
+            <p class="bf-hint mb-0"><i class="bi bi-info-circle"></i> Submitted transactions are queued for the next mined block.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ MINING SECTION ============ -->
+    <section class="bf-section" id="mining">
+      <div class="bf-card bf-glass bf-mining-card">
+        <div class="bf-mining-info">
+          <p class="bf-section-eyebrow">Consensus</p>
+          <h2 class="bf-section-title">Proof-of-Work Mining</h2>
+          <p class="bf-mining-desc">Race the network's difficulty target and seal the next block. Successful mining rewards the miner and finalizes all pending transactions.</p>
+          <div id="minedBlockPanel" class="bf-mined-block d-none">
+            <div class="bf-mined-row"><span>Block</span><strong id="minedIndex">—</strong></div>
+            <div class="bf-mined-row"><span>Proof</span><strong id="minedProof">—</strong></div>
+            <div class="bf-mined-row"><span>Hash</span><strong class="bf-mono bf-truncate" id="minedHash">—</strong></div>
+          </div>
+        </div>
+        <div class="bf-mining-action">
+          <button class="bf-mine-btn" id="mineBtn">
+            <span class="bf-mine-btn-inner">
+              <span class="btn-label"><i class="bi bi-hammer"></i> Mine New Block</span>
+              <span class="btn-spinner d-none"><span class="spinner-border"></span> Mining…</span>
+            </span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ ANALYTICS / CHARTS ============ -->
+    <section class="bf-section" id="analytics">
+      <div class="bf-section-head">
+        <div>
+          <p class="bf-section-eyebrow">Insights</p>
+          <h2 class="bf-section-title">Network Analytics</h2>
+        </div>
+      </div>
+      <div class="row g-3 g-lg-4">
+        <div class="col-lg-6">
+          <div class="bf-card bf-glass">
+            <h5 class="bf-chart-title"><i class="bi bi-graph-up-arrow"></i> Block Growth</h5>
+            <div class="bf-chart-wrap"><canvas id="blockGrowthChart"></canvas></div>
+          </div>
+        </div>
+        <div class="col-lg-6">
+          <div class="bf-card bf-glass">
+            <h5 class="bf-chart-title"><i class="bi bi-bar-chart-line-fill"></i> Transaction Volume</h5>
+            <div class="bf-chart-wrap"><canvas id="txVolumeChart"></canvas></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ RECENT TRANSACTIONS + API STATUS ============ -->
+    <section class="bf-section" id="recent">
+      <div class="row g-3 g-lg-4">
+        <div class="col-lg-8">
+          <div class="bf-section-head">
+            <div>
+              <p class="bf-section-eyebrow">Live Feed</p>
+              <h2 class="bf-section-title">Recent Transactions</h2>
+            </div>
+          </div>
+          <div class="bf-tx-feed" id="recentTxFeed">
+            <!-- populated by JS -->
+          </div>
+        </div>
+        <div class="col-lg-4">
+          <div class="bf-section-head">
+            <div>
+              <p class="bf-section-eyebrow">Health</p>
+              <h2 class="bf-section-title">API Status</h2>
+            </div>
+          </div>
+          <div class="bf-card bf-glass">
+            <div class="bf-status-row">
+              <div class="bf-status-left"><i class="bi bi-hdd-rack-fill"></i> API Connected</div>
+              <span class="bf-badge bf-badge-live" id="status-api">Checking…</span>
+            </div>
+            <div class="bf-status-row">
+              <div class="bf-status-left"><i class="bi bi-database-fill"></i> Database Connected</div>
+              <span class="bf-badge bf-badge-live" id="status-db">Checking…</span>
+            </div>
+            <div class="bf-status-row">
+              <div class="bf-status-left"><i class="bi bi-diagram-3-fill"></i> Blockchain Running</div>
+              <span class="bf-badge bf-badge-live" id="status-chain">Checking…</span>
+            </div>
+            <div class="bf-status-footer">
+              <i class="bi bi-arrow-repeat"></i> Auto-refreshing every <span id="refreshCountdown">10</span>s
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ============ FOOTER ============ -->
+<footer class="bf-footer">
+  <div class="bf-footer-inner">
+    <div class="bf-footer-brand">
+      <span class="bf-logo-mark"><i class="bi bi-hexagon-fill"></i></span>
+      <span>Block<span class="bf-accent">Fusion</span></span>
+    </div>
+    <p class="bf-footer-text">Secure Blockchain Ledger with RSA Cryptography and Proof-of-Work Mining.</p>
+    <div class="bf-footer-links">
+      <a href="https://github.com" target="_blank" rel="noopener"><i class="bi bi-github"></i> GitHub</a>
+      <span class="bf-footer-version">v1.0.0</span>
+    </div>
+  </div>
+</footer>
+
+<!-- Bootstrap 5 JS Bundle -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
+<!-- Chart.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
