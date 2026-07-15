@@ -174,3 +174,17 @@ class Blockchain:
 
     def resolve_conflicts(self):
         return False
+
+    def is_chain_valid(self):
+        """Verify the integrity of the stored blockchain."""
+        blocks = BlockModel.query.order_by(BlockModel.index).all()
+        for i in range(1, len(blocks)):
+            prev = blocks[i - 1]
+            curr = blocks[i]
+            if curr.previous_hash != self.hash(prev):
+                return False
+            guess = f"{prev.proof}{curr.proof}".encode()
+            guess_hash = hashlib.sha256(guess).hexdigest()
+            if guess_hash[:4] != "0000":
+                return False
+        return True

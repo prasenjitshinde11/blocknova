@@ -15,8 +15,11 @@
     mine: '/mine',
     chain: '/chain',
     walletCreate: '/wallet/create',
-    txNew: '/transactions/new',
     walletTx: '/wallet/transactions',
+    sign: '/api/sign',
+    stats: '/api/stats',
+    balance: '/api/balance',
+    health: '/api/health',
   };
   const REFRESH_INTERVAL_MS = 10000;
 
@@ -203,7 +206,7 @@
     const totalTx = chain.reduce((sum, b) => sum + ((b.transactions && b.transactions.length) || 0), 0);
     const wallets = new Set();
     chain.forEach(b => (b.transactions || []).forEach(t => {
-      if (t.sender && t.sender !== 'genesis') wallets.add(t.sender);
+      if (t.sender && t.sender !== 'genesis' && t.sender !== '0') wallets.add(t.sender);
       if (t.recipient) wallets.add(t.recipient);
     }));
 
@@ -218,6 +221,20 @@
     $('#stat-tx-trend').textContent = totalTx ? `${totalTx} confirmed` : 'No activity yet';
     $('#stat-wallets-trend').textContent = wallets.size ? 'Across all blocks' : '';
     $('#stat-network-trend').textContent = state.liveMode ? 'All systems nominal' : 'Simulated feed';
+
+    // Also try to pull accurate stats from the backend
+    if (state.liveMode) {
+      safeFetch(ENDPOINTS.stats).then(data => {
+        if (data && typeof data.unique_wallets === 'number') {
+          $('#stat-wallets').textContent = data.unique_wallets.toLocaleString();
+          $('#stat-blocks').textContent = data.total_blocks.toLocaleString();
+          $('#stat-tx').textContent = data.total_transactions.toLocaleString();
+          $('#stat-network').innerHTML = data.chain_valid
+            ? '<span style="color:var(--bf-green)">Healthy</span>'
+            : '<span style="color:var(--bf-amber)">Invalid!</span>';
+        }
+      }).catch(() => { /* silent — chain data already displayed */ });
+    }
   }
 
   /* ------------------------------------------------------------------ *
@@ -494,6 +511,38 @@
           .catch(() => showToast('Copy Failed', 'Your browser blocked clipboard access.', 'error'));
       });
     });
+
+    // Balance lookup
+    const balanceCheckBtn = $('#balanceCheckBtn');
+    const balanceMyWalletBtn = $('#balanceMyWalletBtn');
+    const balanceInput = $('#balanceInput');
+    const balanceResult = $('#balanceResult');
+
+    async function lookupBalance(address) {
+      if (!address) { showToast('No Address', 'Enter a public key to check.', 'info'); return; }
+      balanceResult.classList.remove('d-none');
+      balanceResult.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Looking up…';
+      try {
+        const data = await safeFetch(`${ENDPOINTS.balance}/${encodeURIComponent(address)}`);
+        balanceResult.innerHTML = `
+          <i class="bi bi-wallet2 me-1"></i>
+          Balance: <strong>${data.balance.toFixed(8)} BFC</strong>
+          &nbsp;&middot;&nbsp; Received: ${data.received.toFixed(8)}
+          &nbsp;&middot;&nbsp; Sent: ${data.sent.toFixed(8)}`;
+      } catch (err) {
+        balanceResult.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i> Could not fetch balance — backend may be offline.';
+      }
+    }
+
+    if (balanceCheckBtn) balanceCheckBtn.addEventListener('click', () => lookupBalance(balanceInput.value.trim()));
+    if (balanceMyWalletBtn) balanceMyWalletBtn.addEventListener('click', () => {
+      if (!state.wallet) { showToast('No Wallet', 'Create a wallet first.', 'info'); return; }
+      balanceInput.value = state.wallet.public_key;
+      lookupBalance(state.wallet.public_key);
+    });
+    if (balanceInput) balanceInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') lookupBalance(balanceInput.value.trim());
+    });
   }
 
   function setBtnLoading(btn, loading) {
@@ -512,11 +561,55 @@
     const form = $('#txForm');
     const submitBtn = $('#txSubmitBtn');
     const clearBtn = $('#txClearBtn');
+    const autoFillBtn = $('#txAutoFillBtn');
 
     clearBtn.addEventListener('click', () => {
       form.reset();
       $$('.bf-input', form).forEach(el => el.classList.remove('is-invalid'));
     });
+
+    // Auto-fill sender from wallet and generate signature via /api/sign
+    if (autoFillBtn) {
+      autoFillBtn.addEventListener('click', async () => {
+        if (!state.wallet) {
+          showToast('No Wallet', 'Generate a wallet first, then use Auto-fill.', 'info');
+          return;
+        }
+        const senderEl = $('#txSender');
+        const recipientEl = $('#txRecipient');
+        const amountEl = $('#txAmount');
+        const sigEl = $('#txSignature');
+
+        senderEl.value = state.wallet.public_key;
+
+        const recipient = recipientEl.value.trim();
+        const amount = parseFloat(amountEl.value.trim());
+
+        if (!recipient || !amount) {
+          showToast('Fill Recipient & Amount', 'Enter the recipient public key and amount first.', 'info');
+          return;
+        }
+
+        autoFillBtn.disabled = true;
+        autoFillBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Signing…';
+        try {
+          const payload = {
+            private_key: state.wallet.private_key,
+            sender: state.wallet.public_key,
+            recipient,
+            amount
+          };
+          const result = await safeFetch(ENDPOINTS.sign, { method: 'POST', body: JSON.stringify(payload) });
+          sigEl.value = result.signature;
+          showToast('Signed', 'Transaction signed with your private key.', 'success');
+        } catch (err) {
+          showToast('Sign Failed', 'Could not sign — backend may be offline.', 'error');
+        } finally {
+          autoFillBtn.disabled = false;
+          autoFillBtn.innerHTML = '<i class="bi bi-lightning-charge-fill"></i> Auto-fill &amp; Sign';
+        }
+      });
+    }
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -541,7 +634,8 @@
       try {
         const payload = { sender, recipient, amount: parseFloat(amount), signature };
         try {
-          await safeFetch(ENDPOINTS.txNew, { method: 'POST', body: JSON.stringify(payload) });
+          // Use the signed wallet endpoint (primary)
+          await safeFetch(ENDPOINTS.walletTx, { method: 'POST', body: JSON.stringify(payload) });
         } catch (err) {
           // Demo fallback: append to the most recent block's pending list visually.
           if (state.chain.length) {

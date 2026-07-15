@@ -16,7 +16,7 @@ class TransactionModel(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     sender = db.Column(db.Text, nullable=False)
     recipient = db.Column(db.Text, nullable=False)
-    amount = db.Column(db.Integer, nullable=False)
+    amount = db.Column(db.Float, nullable=False)
     signature = db.Column(db.Text, nullable=True)
     block_id = db.Column(db.Integer, db.ForeignKey('block.id'), nullable=True)
 

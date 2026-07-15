@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
-<link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
 
@@ -256,7 +256,22 @@
           </div>
         </div>
       </div>
-      <p class="bf-hint"><i class="bi bi-info-circle"></i> Store your private key offline. BlockFusion never persists it server-side.</p>
+
+      <!-- Wallet Balance Lookup -->
+      <div class="bf-card bf-glass mt-3" id="walletBalancePanel">
+        <div class="bf-key-head">
+          <i class="bi bi-graph-up-fill" style="color:var(--bf-green)"></i>
+          <span>Check Balance</span>
+        </div>
+        <div class="d-flex gap-2 align-items-center flex-wrap">
+          <input type="text" class="form-control bf-input bf-mono flex-grow-1" id="balanceInput" placeholder="Paste a public key to check its balance…">
+          <button class="btn bf-btn-primary btn-sm" id="balanceCheckBtn"><i class="bi bi-search"></i> Lookup</button>
+          <button class="btn bf-btn-ghost btn-sm" id="balanceMyWalletBtn" title="Use my generated wallet"><i class="bi bi-wallet2"></i> My Wallet</button>
+        </div>
+        <div id="balanceResult" class="bf-hint mt-2 d-none"></div>
+      </div>
+
+      <p class="bf-hint mt-2"><i class="bi bi-info-circle"></i> Store your private key offline. BlockFusion never persists it server-side.</p>
     </section>
 
     <!-- ============ TRANSACTION SECTION ============ -->
@@ -290,6 +305,9 @@
               </div>
             </div>
             <div class="bf-form-actions">
+              <button type="button" class="btn bf-btn-ghost" id="txAutoFillBtn" title="Auto-fill sender and generate signature from your active wallet">
+                <i class="bi bi-lightning-charge-fill"></i> Auto-fill &amp; Sign
+              </button>
               <button type="submit" class="btn bf-btn-primary" id="txSubmitBtn">
                 <span class="btn-label"><i class="bi bi-send-fill"></i> Submit Transaction</span>
                 <span class="btn-spinner d-none"><span class="spinner-border spinner-border-sm"></span> Sending…</span>
