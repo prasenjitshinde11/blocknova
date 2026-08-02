@@ -25,7 +25,8 @@ A full-stack blockchain web application built with **Python**, **Flask**, and **
 | `GET` | `/` | Web UI dashboard |
 | `GET` | `/api/health` | Node liveness probe |
 | `GET` | `/api/stats` | Chain statistics (blocks, txns, wallets) |
-| `GET` | `/api/balance/<address>` | Wallet balance |
+| `GET` | `/api/balance/<address>` | Wallet balance (GET path) |
+| `POST` | `/api/balance` | Wallet balance (POST JSON body `{ "address": "..." }`) |
 | `GET` | `/mine` | Mine a new block |
 | `GET` | `/chain` | Full blockchain |
 | `POST` | `/transactions/new` | Submit unsigned transaction (legacy) |
@@ -35,8 +36,9 @@ A full-stack blockchain web application built with **Python**, **Flask**, and **
 
 ### Frontend
 - Real-time **dashboard** with chain stats and node status
-- **Wallet panel** — create wallets, copy keys, check balances
-- **Transaction panel** — sign & submit transactions from the browser
+- **Wallet panel** — create wallets, copy keys (with execCommand fallback), check balances via POST/GET
+- **Transaction panel** — step-by-step transaction guide, "Use My Wallet" quick-fill, and server-side RSA auto-signing
+- **Analytics & Charts** — interactive Block Growth and Transaction Volume charts (powered by bundled local `chart.umd.min.js`)
 - **Blockchain explorer** — browse mined blocks and transactions
 - **Mining panel** — trigger PoW mining with live feedback
 
@@ -50,6 +52,7 @@ A full-stack blockchain web application built with **Python**, **Flask**, and **
 | Database | SQLite via Flask-SQLAlchemy |
 | Cryptography | PyCryptodome (RSA / SHA-256) |
 | Frontend | HTML5, Vanilla CSS, Vanilla JS |
+| Charts | Chart.js 4.4 (bundled locally) |
 | Cross-Origin | Flask-CORS |
 | HTTP client | Requests |
 
@@ -72,8 +75,10 @@ BlockFusion/
 │   ├── templates/
 │   │   └── index.html            # Single-page web UI
 │   └── static/
+│       ├── styles.css            # Custom CSS theme & glassmorphic styling
 │       └── js/
-│           └── app.js            # Frontend logic (API calls, wallet, explorer)
+│           ├── app.js            # Frontend logic (API calls, wallet, explorer)
+│           └── chart.umd.min.js  # Local Chart.js bundle (shield & offline resilient)
 └── test/
     └── test_blockchain.py        # Unit tests
 ```
