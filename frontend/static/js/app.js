@@ -200,6 +200,15 @@
   /* ------------------------------------------------------------------ *
    * Rendering — Stats
    * ------------------------------------------------------------------ */
+  // Helper: set a stat card value, clearing any skeleton child elements first
+  function setStatValue(id, html) {
+    const el = $(id);
+    if (!el) return;
+    // Remove skeleton spans so they don't overlap the real value
+    el.querySelectorAll('.bf-skeleton-line').forEach(s => s.remove());
+    el.innerHTML = html;
+  }
+
   function renderStats() {
     const chain = state.chain;
     const totalBlocks = chain.length;
@@ -210,28 +219,30 @@
       if (t.recipient) wallets.add(t.recipient);
     }));
 
-    $('#stat-blocks').textContent = totalBlocks.toLocaleString();
-    $('#stat-tx').textContent = totalTx.toLocaleString();
-    $('#stat-wallets').textContent = wallets.size.toLocaleString();
-    $('#stat-network').innerHTML = state.liveMode
+    setStatValue('#stat-blocks', totalBlocks.toLocaleString());
+    setStatValue('#stat-tx', totalTx.toLocaleString());
+    setStatValue('#stat-wallets', wallets.size.toLocaleString());
+    setStatValue('#stat-network', state.liveMode
       ? '<span style="color:var(--bf-green)">Healthy</span>'
-      : '<span style="color:var(--bf-amber)">Demo</span>';
+      : '<span style="color:var(--bf-amber)">Demo</span>');
 
-    $('#stat-blocks-trend').textContent = totalBlocks ? `+${Math.min(totalBlocks, 3)} this session` : '';
+    $('#stat-blocks-trend').textContent = totalBlocks ? `+${totalBlocks} blocks total` : 'No blocks yet';
     $('#stat-tx-trend').textContent = totalTx ? `${totalTx} confirmed` : 'No activity yet';
     $('#stat-wallets-trend').textContent = wallets.size ? 'Across all blocks' : '';
     $('#stat-network-trend').textContent = state.liveMode ? 'All systems nominal' : 'Simulated feed';
 
-    // Also try to pull accurate stats from the backend
+    // Pull accurate stats from the backend (overrides chain-derived counts)
     if (state.liveMode) {
       safeFetch(ENDPOINTS.stats).then(data => {
         if (data && typeof data.unique_wallets === 'number') {
-          $('#stat-wallets').textContent = data.unique_wallets.toLocaleString();
-          $('#stat-blocks').textContent = data.total_blocks.toLocaleString();
-          $('#stat-tx').textContent = data.total_transactions.toLocaleString();
-          $('#stat-network').innerHTML = data.chain_valid
+          setStatValue('#stat-wallets', data.unique_wallets.toLocaleString());
+          setStatValue('#stat-blocks', data.total_blocks.toLocaleString());
+          setStatValue('#stat-tx', data.total_transactions.toLocaleString());
+          setStatValue('#stat-network', data.chain_valid
             ? '<span style="color:var(--bf-green)">Healthy</span>'
-            : '<span style="color:var(--bf-amber)">Invalid!</span>';
+            : '<span style="color:var(--bf-amber)">Invalid!</span>');
+          $('#stat-blocks-trend').textContent = `+${data.total_blocks} blocks total`;
+          $('#stat-tx-trend').textContent = `${data.total_transactions} confirmed`;
         }
       }).catch(() => { /* silent — chain data already displayed */ });
     }
@@ -349,54 +360,68 @@
   }
 
   function initCharts() {
-    const t = chartTheme();
-    Chart.defaults.font.family = "'IBM Plex Sans', sans-serif";
-    Chart.defaults.color = t.text;
+    // Safety: Chart.js CDN may fail to load (offline/blocked)
+    if (typeof Chart === 'undefined') {
+      console.warn('[BlockFusion] Chart.js not available — charts disabled.');
+      ['#blockGrowthChart', '#txVolumeChart'].forEach(sel => {
+        const canvas = $(sel);
+        if (canvas && canvas.parentElement) {
+          canvas.style.display = 'none';
+          const msg = document.createElement('div');
+          msg.className = 'bf-chart-empty';
+          msg.innerHTML = '<i class="bi bi-wifi-off"></i><p>Charts require an internet connection to load Chart.js.</p>';
+          canvas.parentElement.appendChild(msg);
+        }
+      });
+      return;
+    }
+    try {
+      const t = chartTheme();
+      Chart.defaults.font.family = "'IBM Plex Sans', sans-serif";
+      Chart.defaults.color = t.text;
 
-    const growthCtx = $('#blockGrowthChart').getContext('2d');
-    const growthGradient = growthCtx.createLinearGradient(0, 0, 0, 260);
-    growthGradient.addColorStop(0, 'rgba(61,127,255,0.35)');
-    growthGradient.addColorStop(1, 'rgba(61,127,255,0)');
+      const growthCtx = $('#blockGrowthChart').getContext('2d');
+      const growthGradient = growthCtx.createLinearGradient(0, 0, 0, 260);
+      growthGradient.addColorStop(0, 'rgba(61,127,255,0.35)');
+      growthGradient.addColorStop(1, 'rgba(61,127,255,0)');
 
-    state.charts.growth = new Chart(growthCtx, {
-      type: 'line',
-      data: {
-        labels: [],
-        datasets: [{
+      state.charts.growth = new Chart(growthCtx, {
+        type: 'line',
+        data: { labels: [], datasets: [{
           label: 'Blocks',
           data: [],
           borderColor: t.blue,
           backgroundColor: growthGradient,
           fill: true,
           tension: 0.4,
-          pointRadius: 3,
+          pointRadius: 4,
+          pointHoverRadius: 6,
           pointBackgroundColor: t.blue,
           pointBorderColor: '#0C0F17',
           borderWidth: 2,
-        }],
-      },
-      options: chartOptions(t, false),
-    });
+        }] },
+        options: chartOptions(t, false),
+      });
 
-    const volCtx = $('#txVolumeChart').getContext('2d');
-    const volGradient = volCtx.createLinearGradient(0, 0, 0, 260);
-    volGradient.addColorStop(0, 'rgba(22,199,132,0.85)');
-    volGradient.addColorStop(1, 'rgba(22,199,132,0.15)');
+      const volCtx = $('#txVolumeChart').getContext('2d');
+      const volGradient = volCtx.createLinearGradient(0, 0, 0, 260);
+      volGradient.addColorStop(0, 'rgba(22,199,132,0.85)');
+      volGradient.addColorStop(1, 'rgba(22,199,132,0.15)');
 
-    state.charts.volume = new Chart(volCtx, {
-      type: 'bar',
-      data: {
-        labels: [],
-        datasets: [{
+      state.charts.volume = new Chart(volCtx, {
+        type: 'bar',
+        data: { labels: [], datasets: [{
           label: 'Transactions',
           data: [],
           backgroundColor: volGradient,
           borderRadius: 6,
-          maxBarThickness: 34,
-        }],
-      },
-      options: chartOptions(t, true),
-    });
+          maxBarThickness: 40,
+        }] },
+        options: chartOptions(t, true),
+      });
+    } catch (err) {
+      console.error('[BlockFusion] Chart initialisation failed:', err);
+    }
   }
 
   function chartOptions(t, isBar) {
@@ -426,9 +451,31 @@
 
   function updateCharts() {
     const sorted = [...state.chain].sort((a, b) => a.index - b.index);
-    const labels = sorted.map(b => `#${b.index}`);
-    const cumulative = sorted.map((_, i) => i + 1);
-    const txCounts = sorted.map(b => (b.transactions && b.transactions.length) || 0);
+    const hasRealData = sorted.length >= 2;
+
+    // Toggle empty-state overlays
+    const growthEmpty = $('#growthChartEmpty');
+    const volEmpty   = $('#volChartEmpty');
+    if (growthEmpty) growthEmpty.classList.toggle('d-none', hasRealData);
+    if (volEmpty)   volEmpty.classList.toggle('d-none', hasRealData);
+
+    // Build chart data — pad to at least 5 visible points so bars/lines render
+    let labels, cumulative, txCounts;
+    if (sorted.length === 0) {
+      labels = ['#1','#2','#3','#4','#5'];
+      cumulative = [1,2,3,4,5];
+      txCounts   = [0,0,0,0,0];
+    } else if (sorted.length === 1) {
+      // Extend genesis block with 4 zero-fill preview points
+      const base = sorted[0];
+      labels     = [`#${base.index}`, '#2', '#3', '#4', '#5'];
+      cumulative = [1, 2, 3, 4, 5];
+      txCounts   = [(base.transactions && base.transactions.length) || 0, 0, 0, 0, 0];
+    } else {
+      labels     = sorted.map(b => `#${b.index}`);
+      cumulative = sorted.map((_, i) => i + 1);
+      txCounts   = sorted.map(b => (b.transactions && b.transactions.length) || 0);
+    }
 
     if (state.charts.growth) {
       state.charts.growth.data.labels = labels;
@@ -506,9 +553,31 @@
           showToast('Nothing to Copy', 'Generate a wallet first.', 'info');
           return;
         }
-        navigator.clipboard.writeText(text)
-          .then(() => showToast('Copied', 'Key copied to clipboard.', 'success'))
-          .catch(() => showToast('Copy Failed', 'Your browser blocked clipboard access.', 'error'));
+        // Try modern Clipboard API first, fall back to execCommand for non-secure contexts
+        const doCopy = () => {
+          if (navigator.clipboard && window.isSecureContext) {
+            return navigator.clipboard.writeText(text);
+          }
+          // Fallback: create a temporary textarea and use execCommand
+          return new Promise((resolve, reject) => {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+            try {
+              document.execCommand('copy') ? resolve() : reject(new Error('execCommand failed'));
+            } catch (e) {
+              reject(e);
+            } finally {
+              ta.remove();
+            }
+          });
+        };
+        doCopy()
+          .then(() => showToast('Copied!', 'Key copied to clipboard.', 'success'))
+          .catch(() => showToast('Copy Failed', 'Could not access clipboard. Select the key manually.', 'error'));
       });
     });
 
@@ -523,7 +592,11 @@
       balanceResult.classList.remove('d-none');
       balanceResult.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Looking up…';
       try {
-        const data = await safeFetch(`${ENDPOINTS.balance}/${encodeURIComponent(address)}`);
+        // Use POST with JSON body to avoid URL-length issues with long RSA hex keys
+        const data = await safeFetch(ENDPOINTS.balance, {
+          method: 'POST',
+          body: JSON.stringify({ address })
+        });
         balanceResult.innerHTML = `
           <i class="bi bi-wallet2 me-1"></i>
           Balance: <strong>${data.balance.toFixed(8)} BFC</strong>
@@ -567,6 +640,20 @@
       form.reset();
       $$('.bf-input', form).forEach(el => el.classList.remove('is-invalid'));
     });
+
+    // "Use My Wallet" quick-fill for the Sender field
+    const useSenderBtn = $('#txUseSenderBtn');
+    if (useSenderBtn) {
+      useSenderBtn.addEventListener('click', () => {
+        if (!state.wallet) {
+          showToast('No Wallet', 'Generate a wallet in the Wallet section first.', 'info');
+          return;
+        }
+        $('#txSender').value = state.wallet.public_key;
+        $('#txSender').classList.remove('is-invalid');
+        showToast('Sender Filled', 'Your wallet public key has been set as the sender.', 'success');
+      });
+    }
 
     // Auto-fill sender from wallet and generate signature via /api/sign
     if (autoFillBtn) {
@@ -885,6 +972,12 @@
     initCharts();
 
     loadChain().then(() => {
+      // Force a chart update after data is loaded to guarantee canvas renders
+      requestAnimationFrame(() => {
+        updateCharts();
+        if (state.charts.growth) state.charts.growth.resize();
+        if (state.charts.volume) state.charts.volume.resize();
+      });
       startAutoRefresh();
     });
   });

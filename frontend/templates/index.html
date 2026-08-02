@@ -287,8 +287,13 @@
         <div class="col-lg-7">
           <form class="bf-card bf-glass" id="txForm" novalidate>
             <div class="mb-3">
-              <label class="bf-label" for="txSender">Sender Public Key</label>
-              <textarea class="form-control bf-input bf-mono" id="txSender" rows="2" placeholder="Paste sender public key…" required></textarea>
+              <div class="d-flex align-items-center justify-content-between mb-1">
+                <label class="bf-label mb-0" for="txSender">Sender Public Key</label>
+                <button type="button" class="btn bf-btn-ghost btn-sm py-0 px-2" id="txUseSenderBtn" style="font-size:0.78rem;">
+                  <i class="bi bi-wallet2"></i> Use My Wallet
+                </button>
+              </div>
+              <textarea class="form-control bf-input bf-mono" id="txSender" rows="2" placeholder="Paste sender public key… or click 'Use My Wallet'" required></textarea>
             </div>
             <div class="mb-3">
               <label class="bf-label" for="txRecipient">Recipient Public Key</label>
@@ -318,11 +323,32 @@
         </div>
         <div class="col-lg-5">
           <div class="bf-card bf-glass h-100 bf-tip-card">
-            <i class="bi bi-lightbulb-fill"></i>
-            <h5>How signing works</h5>
-            <p>Every transaction is signed with the sender's private RSA key and verified against their public key before entering the mempool. Tampered payloads are rejected before they ever reach a block.</p>
+            <i class="bi bi-signpost-2-fill" style="color:var(--bf-primary)"></i>
+            <h5>How to make a Transaction</h5>
+            <ol class="bf-tx-guide">
+              <li>
+                <strong>Create a Sender Wallet</strong><br>
+                <span>Go to <a href="#wallet" class="bf-guide-link">Wallet ↑</a>, click <em>Create Wallet</em>. Copy the public key.</span>
+              </li>
+              <li>
+                <strong>Get a Recipient Key</strong><br>
+                <span>Create a second wallet (or use any existing public key) as the recipient address.</span>
+              </li>
+              <li>
+                <strong>Fill the Form</strong><br>
+                <span>Click <em>Use My Wallet</em> to auto-fill the Sender field. Paste the recipient key and enter an amount.</span>
+              </li>
+              <li>
+                <strong>Auto-fill &amp; Sign</strong><br>
+                <span>Click <em><i class="bi bi-lightning-charge-fill"></i> Auto-fill &amp; Sign</em> — your private key signs the transaction automatically.</span>
+              </li>
+              <li>
+                <strong>Submit &amp; Mine</strong><br>
+                <span>Submit the transaction, then go to <a href="#mining" class="bf-guide-link">Mining ↓</a> and mine a block to confirm it.</span>
+              </li>
+            </ol>
             <div class="bf-tip-divider"></div>
-            <p class="bf-hint mb-0"><i class="bi bi-info-circle"></i> Submitted transactions are queued for the next mined block.</p>
+            <p class="bf-hint mb-0"><i class="bi bi-shield-lock-fill" style="color:var(--bf-green)"></i> RSA signature is verified server-side before the transaction is accepted.</p>
           </div>
         </div>
       </div>
@@ -364,13 +390,25 @@
         <div class="col-lg-6">
           <div class="bf-card bf-glass">
             <h5 class="bf-chart-title"><i class="bi bi-graph-up-arrow"></i> Block Growth</h5>
-            <div class="bf-chart-wrap"><canvas id="blockGrowthChart"></canvas></div>
+            <div class="bf-chart-wrap">
+              <canvas id="blockGrowthChart"></canvas>
+              <div class="bf-chart-empty" id="growthChartEmpty">
+                <i class="bi bi-graph-up-arrow"></i>
+                <p>Mine blocks to see growth trends</p>
+              </div>
+            </div>
           </div>
         </div>
         <div class="col-lg-6">
           <div class="bf-card bf-glass">
             <h5 class="bf-chart-title"><i class="bi bi-bar-chart-line-fill"></i> Transaction Volume</h5>
-            <div class="bf-chart-wrap"><canvas id="txVolumeChart"></canvas></div>
+            <div class="bf-chart-wrap">
+              <canvas id="txVolumeChart"></canvas>
+              <div class="bf-chart-empty" id="volChartEmpty">
+                <i class="bi bi-bar-chart-line-fill"></i>
+                <p>Submit transactions and mine blocks to see volume</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -438,8 +476,8 @@
 
 <!-- Bootstrap 5 JS Bundle -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
-<!-- Chart.js -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<!-- Chart.js — served locally (avoids CDN blocking by Brave/uBlock shields) -->
+<script src="{{ url_for('static', filename='js/chart.umd.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>

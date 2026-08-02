@@ -221,12 +221,15 @@ h1,h2,h3,h4,h5,.bf-brand-text{ font-family:var(--bf-font-display); letter-spacin
   background:linear-gradient(135deg, rgba(var(--bf-primary-rgb),0.25), rgba(255,255,255,0) 40%, rgba(var(--bf-secondary-rgb),0.18));
   -webkit-mask:linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   mask:linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite:xor;
+  mask-composite:exclude;
+  pointer-events:none;
+}
 .fade-up{
   animation:fadeUp 0.6s cubic-bezier(.2,.8,.2,1) both;
   animation-delay:var(--delay,0ms);
 }
 @keyframes fadeUp{ from{ opacity:0; transform:translateY(18px); } to{ opacity:1; transform:translateY(0); } }
-}
 /* ==========================================================================
    Sections
    ========================================================================== */
@@ -415,10 +418,20 @@ tr.expanded .bf-expand-icon{ transform:rotate(90deg); color:var(--bf-primary); }
 .bf-form-actions{ display:flex; gap:0.75rem; margin-top:0.5rem; flex-wrap:wrap; }
 
 .bf-tip-card{ display:flex; flex-direction:column; }
-.bf-tip-card i{ font-size:1.6rem; color:var(--bf-amber); margin-bottom:0.75rem; }
-.bf-tip-card h5{ font-weight:700; margin-bottom:0.6rem; }
+.bf-tip-card > i:first-child{ font-size:1.6rem; margin-bottom:0.75rem; }
+.bf-tip-card h5{ font-weight:700; margin-bottom:0.8rem; }
 .bf-tip-card p{ color:var(--bf-text-muted); font-size:0.88rem; line-height:1.6; }
 .bf-tip-divider{ height:1px; background:var(--bf-border); margin:1rem 0; }
+
+/* Step-by-step transaction guide */
+.bf-tx-guide{
+  padding-left:1.1rem; margin:0 0 0.5rem 0;
+  display:flex; flex-direction:column; gap:0.7rem;
+}
+.bf-tx-guide li{ font-size:0.86rem; color:var(--bf-text-muted); line-height:1.5; }
+.bf-tx-guide li strong{ color:var(--bf-text); display:block; margin-bottom:0.15rem; }
+.bf-guide-link{ color:var(--bf-primary); text-decoration:underline; text-underline-offset:2px; }
+.bf-guide-link:hover{ color:var(--bf-secondary); }
 
 /* ==========================================================================
    Mining
@@ -469,6 +482,16 @@ tr.expanded .bf-expand-icon{ transform:rotate(90deg); color:var(--bf-primary); }
 .bf-chart-title{ display:flex; align-items:center; gap:0.5rem; font-weight:600; font-size:1rem; margin-bottom:1.1rem; }
 .bf-chart-title i{ color:var(--bf-primary); }
 .bf-chart-wrap{ position:relative; height:260px; }
+
+/* Chart empty-state overlay */
+.bf-chart-empty{
+  position:absolute; inset:0;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0.5rem;
+  background:rgba(15,23,42,0.55); backdrop-filter:blur(4px);
+  border-radius:10px; color:var(--bf-text-muted); text-align:center; pointer-events:none;
+}
+.bf-chart-empty i{ font-size:2rem; opacity:0.45; }
+.bf-chart-empty p{ font-size:0.82rem; margin:0; max-width:200px; line-height:1.45; }
 
 .bf-tx-feed{ display:flex; flex-direction:column; gap:0.75rem; }
 .bf-tx-item{

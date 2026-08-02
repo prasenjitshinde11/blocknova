@@ -73,7 +73,24 @@ def stats():
 
 @app.route('/api/balance/<path:public_key>', methods=['GET'])
 def get_balance(public_key):
-    """Return the net balance for a wallet address."""
+    """Return the net balance for a wallet address (GET)."""
+    return _balance_response(public_key)
+
+
+@app.route('/api/balance', methods=['POST'])
+def get_balance_post():
+    """Return the net balance for a wallet address (POST with JSON body).
+    Accepts: { "address": "<public_key_hex>" }
+    Using POST avoids URL-length limits with long RSA hex keys.
+    """
+    values = request.get_json()
+    if not values or 'address' not in values:
+        return jsonify({"error": "Missing 'address' field"}), 400
+    return _balance_response(values['address'])
+
+
+def _balance_response(public_key):
+    """Shared balance calculation helper."""
     with app.app_context():
         sent = db.session.query(
             db.func.sum(TransactionModel.amount)
