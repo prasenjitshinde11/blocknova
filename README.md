@@ -1,4 +1,4 @@
-# ⛓️ BlockFusion
+# ⛓️ BlockNova
 
 A full-stack blockchain web application built with **Python**, **Flask**, and **SQLite** — demonstrating real-world blockchain concepts including cryptographic wallets, signed transactions, Proof of Work, SHA-256 hashing, and chain validation, all accessible through a modern browser UI.
 
@@ -61,7 +61,7 @@ A full-stack blockchain web application built with **Python**, **Flask**, and **
 ## 📁 Project Structure
 
 ```text
-BlockFusion/
+BlockNova/
 ├── app.py                        # Flask app & all API routes
 ├── blockchain.py                 # Blockchain logic (PoW, hashing, chain ops)
 ├── requirements.txt              # Python dependencies
