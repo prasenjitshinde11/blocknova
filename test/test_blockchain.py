@@ -42,8 +42,12 @@ class BlockchainTestCase(TestCase):
         self.blockchain.new_block(proof, previous_hash)
 
     def create_transaction(self, recipient='b', amount=1):
+        # Senders need confirmed funds and a nonce-bound signature.
+        self.blockchain.new_coinbase_transaction(self.public_key, amount)
+        self.blockchain.new_block(proof=100)
+        nonce = self.blockchain.next_nonce(self.public_key)
         signature = WalletCrypto.sign_transaction(
-            self.private_key, self.public_key, recipient, amount
+            self.private_key, self.public_key, recipient, amount, nonce
         )
         return self.blockchain.new_transaction(
             sender=self.public_key,

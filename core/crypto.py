@@ -2,6 +2,7 @@ from Crypto.PublicKey import RSA
 from Crypto.Signature import pkcs1_15
 from Crypto.Hash import SHA256
 import binascii
+import json
 
 
 class WalletCrypto:
@@ -22,11 +23,30 @@ class WalletCrypto:
         return private_key, public_key
 
     @staticmethod
-    def verify_signature(public_key_hex, recipient, amount, signature_hex):
+    def transaction_payload(sender, recipient, amount, nonce):
+        """Canonical, unambiguous bytes covered by a transaction signature."""
+        return json.dumps(
+            {
+                "type": "blocknova-tx-v1",
+                "sender": sender,
+                "recipient": recipient,
+                "amount": float(amount),
+                "nonce": int(nonce),
+            },
+            sort_keys=True,
+            separators=(',', ':'),
+            ensure_ascii=True,
+            allow_nan=False,
+        ).encode()
+
+    @staticmethod
+    def verify_signature(public_key_hex, recipient, amount, signature_hex, nonce):
         """Verifies if a transaction signature matches the sender's public key"""
 
         try:
-            data = f"{public_key_hex}{recipient}{amount}".encode()
+            data = WalletCrypto.transaction_payload(
+                public_key_hex, recipient, amount, nonce
+            )
 
             public_key = RSA.import_key(
                 binascii.unhexlify(public_key_hex)
@@ -43,19 +63,29 @@ class WalletCrypto:
 
             return True
 
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, IndexError):
             return False
 
     @staticmethod
-    def sign_transaction(private_key_hex, sender, recipient, amount):
-        """Signs a transaction using the sender's private key"""
+    def sign_transaction(private_key_hex, sender, recipient, amount, nonce):
+        """Signs a transaction using the sender's private key.
+        Returns None if the key is invalid or does not belong to `sender`."""
 
         try:
             private_key = RSA.import_key(
                 binascii.unhexlify(private_key_hex)
             )
 
-            data = f"{sender}{recipient}{amount}".encode()
+            own_public_key = binascii.hexlify(
+                private_key.publickey().export_key(format='DER')
+            ).decode('ascii')
+
+            if not isinstance(sender, str) or sender.lower() != own_public_key:
+                return None
+
+            data = WalletCrypto.transaction_payload(
+                sender, recipient, amount, nonce
+            )
 
             data_hash = SHA256.new(data)
 

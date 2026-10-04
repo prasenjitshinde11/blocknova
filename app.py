@@ -4,7 +4,7 @@ from flask import Flask, jsonify, request, render_template
 from flask_cors import CORS
 from uuid import uuid4
 
-from blockchain import Blockchain
+from blockchain import Blockchain, TransactionError
 from core.crypto import WalletCrypto
 from core.database import db, BlockModel, TransactionModel
 
@@ -135,17 +135,27 @@ def sign_transaction():
     if not all(k in values for k in required):
         return jsonify({"error": "Missing values"}), 400
 
+    try:
+        amount = blockchain.validate_transaction_fields(
+            values['sender'], values['recipient'], values['amount']
+        )
+    except TransactionError as e:
+        return jsonify({"error": str(e)}), 400
+
+    nonce = blockchain.next_nonce(values['sender'])
+
     signature = WalletCrypto.sign_transaction(
         values['private_key'],
         values['sender'],
         values['recipient'],
-        values['amount']
+        amount,
+        nonce
     )
 
     if signature is None:
-        return jsonify({"error": "Could not sign transaction — invalid private key"}), 400
+        return jsonify({"error": "Could not sign transaction — invalid private key or key does not match sender"}), 400
 
-    return jsonify({"signature": signature}), 200
+    return jsonify({"signature": signature, "nonce": nonce}), 200
 
 
 # ── Mine ──────────────────────────────────────────────────────────────────────
@@ -157,8 +167,7 @@ def mine():
 
     proof = blockchain.proof_of_work(last_proof)
 
-    blockchain.new_transaction(
-        sender="0",
+    blockchain.new_coinbase_transaction(
         recipient=node_identifier,
         amount=1
     )
@@ -205,11 +214,14 @@ def new_transaction():
     if not all(k in values for k in required):
         return jsonify({"error": "Missing values"}), 400
 
-    index = blockchain.new_transaction(
-        values['sender'],
-        values['recipient'],
-        values['amount']
-    )
+    try:
+        index = blockchain.add_transaction(
+            values['sender'],
+            values['recipient'],
+            values['amount']
+        )
+    except TransactionError as e:
+        return jsonify({"error": str(e)}), 400
 
     return jsonify({
         "message": f"Transaction will be added to Block {index}"
@@ -229,15 +241,16 @@ def wallet_transaction():
     if not all(k in values for k in required):
         return jsonify({"error": "Missing values"}), 400
 
-    index = blockchain.new_transaction(
-        values['sender'],
-        values['recipient'],
-        values['amount'],
-        values['signature']
-    )
-
-    if index is None:
-        return jsonify({"error": "Invalid cryptographic signature"}), 400
+    try:
+        index = blockchain.add_transaction(
+            values['sender'],
+            values['recipient'],
+            values['amount'],
+            values['signature'],
+            values.get('nonce')
+        )
+    except TransactionError as e:
+        return jsonify({"error": str(e)}), 400
 
     return jsonify({
         "message": f"Transaction will be added to Block {index}"

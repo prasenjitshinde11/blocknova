@@ -1,11 +1,19 @@
 import hashlib
 import json
+import math
 
 from time import time
 from urllib.parse import urlparse
 
 from core.database import db, BlockModel, TransactionModel
 from core.crypto import WalletCrypto
+
+
+COINBASE_SENDER = "0"
+
+
+class TransactionError(ValueError):
+    """A submitted transaction was rejected."""
 
 
 class Blockchain:
@@ -88,18 +96,71 @@ class Blockchain:
         sender,
         recipient,
         amount,
-        signature=None
+        signature=None,
+        nonce=None
     ):
+        """Add a user transaction; returns the target block index, or None
+        if the transaction is rejected."""
+        try:
+            return self.add_transaction(
+                sender, recipient, amount, signature, nonce
+            )
+        except TransactionError:
+            return None
 
-        if sender != "0":
-            if not WalletCrypto.verify_signature(
-                sender,
-                recipient,
-                amount,
-                signature
-            ):
-                return None
+    def add_transaction(
+        self,
+        sender,
+        recipient,
+        amount,
+        signature=None,
+        nonce=None
+    ):
+        """Validate and store a signed user transaction.
+        Raises TransactionError with the reason when rejected."""
 
+        if sender == COINBASE_SENDER:
+            raise TransactionError(
+                "Coinbase transactions can only be created by mining"
+            )
+
+        amount = self.validate_transaction_fields(sender, recipient, amount)
+
+        if not isinstance(signature, str) or not signature:
+            raise TransactionError("Invalid cryptographic signature")
+
+        if TransactionModel.query.filter_by(signature=signature).first():
+            raise TransactionError("Duplicate transaction: already submitted")
+
+        expected_nonce = self.next_nonce(sender)
+        if nonce is None:
+            nonce = expected_nonce
+        elif (isinstance(nonce, bool) or not isinstance(nonce, int)
+              or nonce != expected_nonce):
+            raise TransactionError(
+                f"Invalid nonce: expected {expected_nonce}"
+            )
+
+        if not WalletCrypto.verify_signature(
+            sender,
+            recipient,
+            amount,
+            signature,
+            nonce
+        ):
+            raise TransactionError("Invalid cryptographic signature")
+
+        if round(self.available_balance(sender) - amount, 8) < 0:
+            raise TransactionError("Insufficient balance")
+
+        return self._store_transaction(sender, recipient, amount, signature)
+
+    def new_coinbase_transaction(self, recipient, amount):
+        """Mining reward; the only way new coins are created."""
+        amount = self.validate_amount(amount)
+        return self._store_transaction(COINBASE_SENDER, recipient, amount, None)
+
+    def _store_transaction(self, sender, recipient, amount, signature):
         tx = TransactionModel(
             sender=sender,
             recipient=recipient,
@@ -111,6 +172,46 @@ class Blockchain:
         db.session.commit()
 
         return self.last_block.index + 1
+
+    @staticmethod
+    def validate_amount(amount):
+        if isinstance(amount, bool) or not isinstance(amount, (int, float)):
+            raise TransactionError("Invalid amount: must be a number")
+        try:
+            amount = float(amount)
+        except OverflowError:
+            raise TransactionError("Invalid amount: too large")
+        if not math.isfinite(amount) or amount <= 0:
+            raise TransactionError(
+                "Invalid amount: must be a finite number greater than 0"
+            )
+        return amount
+
+    def validate_transaction_fields(self, sender, recipient, amount):
+        """Check sender/recipient/amount; returns the normalised amount."""
+        for name, value in (('sender', sender), ('recipient', recipient)):
+            if not isinstance(value, str) or not value:
+                raise TransactionError(f"Invalid {name}")
+        return self.validate_amount(amount)
+
+    def next_nonce(self, sender):
+        """Per-sender sequence number expected for the next transaction."""
+        return TransactionModel.query.filter_by(sender=sender).count() + 1
+
+    @staticmethod
+    def _sum_amounts(*criteria):
+        return db.session.query(
+            db.func.sum(TransactionModel.amount)
+        ).filter(*criteria).scalar() or 0.0
+
+    def available_balance(self, address):
+        """Confirmed received minus confirmed and pending sent."""
+        received = self._sum_amounts(
+            TransactionModel.recipient == address,
+            TransactionModel.block_id.isnot(None)
+        )
+        sent = self._sum_amounts(TransactionModel.sender == address)
+        return round(received - sent, 8)
 
     @staticmethod
     def hash(block):
