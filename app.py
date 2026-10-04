@@ -1,3 +1,5 @@
+import os
+
 from flask import Flask, jsonify, request, render_template
 from flask_cors import CORS
 from uuid import uuid4
@@ -10,7 +12,7 @@ app = Flask(__name__,
             template_folder='frontend/templates',
             static_folder='frontend/static')
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///blockchain.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///blockchain.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 CORS(app)
