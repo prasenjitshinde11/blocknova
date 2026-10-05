@@ -48,8 +48,10 @@ class Phase2TestCase(TestCase):
         """Sign via /api/sign and build the body the frontend submits."""
         resp = self.sign(priv, sender, recipient, amount)
         self.assertEqual(resp.status_code, 200, resp.get_json())
-        return {'sender': sender, 'recipient': recipient,
-                'amount': amount, 'signature': resp.get_json()['signature']}
+        signed = resp.get_json()
+        return {'sender': sender, 'recipient': recipient, 'amount': amount,
+                'signature': signed['signature'], 'nonce': signed['nonce'],
+                'expires_at': signed['expires_at']}
 
     def submit(self, tx):
         return self.client.post('/wallet/transactions', json=tx)
@@ -197,7 +199,7 @@ class TestReplayProtection(Phase2TestCase):
         signed = self.sign(self.alice_priv, self.alice, self.bob, 1).get_json()
         self.assertEqual(signed.get('nonce'), 1)
         tx = {'sender': self.alice, 'recipient': self.bob, 'amount': 1,
-              'signature': signed['signature']}
+              'signature': signed['signature'], 'expires_at': signed['expires_at']}
         self.assertEqual(self.submit({**tx, 'nonce': 2}).status_code, 400)
         self.assertEqual(self.submit({**tx, 'nonce': 1}).status_code, 201)
         self.assertEqual(self.submit({**tx, 'nonce': 1}).status_code, 400)
@@ -275,7 +277,7 @@ class TestSignatureBinding(Phase2TestCase):
 
     def test_tampered_recipient_rejected(self):
         tx = self.signed_tx(self.alice_priv, self.alice, self.bob, 1)
-        self.assert_rejected_signature({**tx, 'recipient': 'attacker'})
+        self.assert_rejected_signature({**tx, 'recipient': wallet('attacker')[1]})
 
     def test_sender_substitution_rejected(self):
         tx = self.signed_tx(self.alice_priv, self.alice, self.bob, 1)
@@ -283,8 +285,18 @@ class TestSignatureBinding(Phase2TestCase):
         self.assertEqual(self.count_txs(sender=self.bob), 0)
 
     def test_ambiguous_field_boundary_rejected(self):
-        tx = self.signed_tx(self.alice_priv, self.alice, 'ab', 12)
-        self.assert_rejected_signature({**tx, 'recipient': 'ab1', 'amount': 2})
+        # 'ab'+'12' and 'ab1'+'2' concatenated identically in the old format.
+        expires_at = blockchain.new_expiry()
+        signature = WalletCrypto.sign_transaction(
+            self.alice_priv, self.alice, 'ab', 12, 1, expires_at)
+        self.assertTrue(WalletCrypto.verify_signature(
+            self.alice, 'ab', 12, signature, 1, expires_at))
+        self.assertFalse(WalletCrypto.verify_signature(
+            self.alice, 'ab1', 2, signature, 1, expires_at))
+        for recipient, amount in (('ab', 12), ('ab1', 2)):
+            resp = self.submit({'sender': self.alice, 'recipient': recipient, 'amount': amount,
+                                'signature': signature, 'nonce': 1, 'expires_at': expires_at})
+            self.assertEqual(resp.status_code, 400)
         self.assertEqual(self.count_txs(sender=self.alice), 0)
 
     def test_sign_endpoint_rejects_key_not_matching_sender(self):

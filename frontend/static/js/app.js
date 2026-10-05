@@ -688,6 +688,7 @@
           };
           const result = await safeFetch(ENDPOINTS.sign, { method: 'POST', body: JSON.stringify(payload) });
           sigEl.value = result.signature;
+          state.signedTx = { signature: result.signature, nonce: result.nonce, expires_at: result.expires_at };
           showToast('Signed', 'Transaction signed with your private key.', 'success');
         } catch (err) {
           showToast('Sign Failed', 'Could not sign — backend may be offline.', 'error');
@@ -720,6 +721,10 @@
       setBtnLoading(submitBtn, true);
       try {
         const payload = { sender, recipient, amount: parseFloat(amount), signature };
+        if (state.signedTx && state.signedTx.signature === signature) {
+          payload.nonce = state.signedTx.nonce;
+          payload.expires_at = state.signedTx.expires_at;
+        }
         try {
           // Use the signed wallet endpoint (primary)
           await safeFetch(ENDPOINTS.walletTx, { method: 'POST', body: JSON.stringify(payload) });

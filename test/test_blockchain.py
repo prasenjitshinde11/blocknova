@@ -25,6 +25,7 @@ class BlockchainTestCase(TestCase):
     @classmethod
     def setUpClass(cls):
         cls.private_key, cls.public_key = WalletCrypto.generate_key_pair()
+        cls.recipient_key = WalletCrypto.generate_key_pair()[1]
 
     def setUp(self):
         self.app = make_test_app()
@@ -41,19 +42,24 @@ class BlockchainTestCase(TestCase):
     def create_block(self, proof=123, previous_hash='abc'):
         self.blockchain.new_block(proof, previous_hash)
 
-    def create_transaction(self, recipient='b', amount=1):
-        # Senders need confirmed funds and a nonce-bound signature.
+    def create_transaction(self, recipient=None, amount=1):
+        # Senders need confirmed funds and a nonce-bound, expiring signature;
+        # recipients must be public-key addresses.
+        recipient = recipient or self.recipient_key
         self.blockchain.new_coinbase_transaction(self.public_key, amount)
         self.blockchain.new_block(proof=100)
         nonce = self.blockchain.next_nonce(self.public_key)
+        expires_at = self.blockchain.new_expiry()
         signature = WalletCrypto.sign_transaction(
-            self.private_key, self.public_key, recipient, amount, nonce
+            self.private_key, self.public_key, recipient, amount, nonce,
+            expires_at
         )
         return self.blockchain.new_transaction(
             sender=self.public_key,
             recipient=recipient,
             amount=amount,
-            signature=signature
+            signature=signature,
+            expires_at=expires_at
         )
 
     def pending_transactions(self):
@@ -106,7 +112,7 @@ class TestBlocksAndTransactions(BlockchainTestCase):
 
         assert transaction
         assert transaction.sender == self.public_key
-        assert transaction.recipient == 'b'
+        assert transaction.recipient == self.recipient_key
         assert transaction.amount == 1
 
     def test_block_resets_transactions(self):

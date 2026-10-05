@@ -4,7 +4,7 @@ from flask import Flask, jsonify, request, render_template
 from flask_cors import CORS
 from uuid import uuid4
 
-from blockchain import Blockchain, TransactionError
+from blockchain import Blockchain, TransactionError, UNITS_PER_COIN
 from core.crypto import WalletCrypto
 from core.database import db, BlockModel, TransactionModel
 
@@ -14,12 +14,19 @@ app = Flask(__name__,
 
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///blockchain.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['MAX_CONTENT_LENGTH'] = 64 * 1024
 
 CORS(app)
 
 node_identifier = str(uuid4()).replace('-', '')
 
 blockchain = Blockchain(app)
+
+
+def _json_object():
+    """Request JSON body if it is an object, else None."""
+    values = request.get_json(silent=True)
+    return values if isinstance(values, dict) else None
 
 
 # ── Home ──────────────────────────────────────────────────────────────────────
@@ -85,35 +92,28 @@ def get_balance_post():
     Accepts: { "address": "<public_key_hex>" }
     Using POST avoids URL-length limits with long RSA hex keys.
     """
-    values = request.get_json()
-    if not values or 'address' not in values:
+    values = _json_object()
+    if values is None:
+        return jsonify({"error": "Invalid JSON"}), 400
+    if not isinstance(values.get('address'), str):
         return jsonify({"error": "Missing 'address' field"}), 400
     return _balance_response(values['address'])
 
 
 def _balance_response(public_key):
-    """Shared balance calculation helper."""
+    """Shared balance calculation helper.
+    `balance` is spendable: confirmed balance minus pending sends."""
     with app.app_context():
-        sent = db.session.query(
-            db.func.sum(TransactionModel.amount)
-        ).filter(
-            TransactionModel.sender == public_key,
-            TransactionModel.block_id.isnot(None)
-        ).scalar() or 0.0
+        received, sent, pending_sent = blockchain.balance_units(public_key)
 
-        received = db.session.query(
-            db.func.sum(TransactionModel.amount)
-        ).filter(
-            TransactionModel.recipient == public_key,
-            TransactionModel.block_id.isnot(None)
-        ).scalar() or 0.0
-
-    balance = round(received - sent, 8)
+    unit = UNITS_PER_COIN
     return jsonify({
         "address": public_key,
-        "balance": balance,
-        "received": round(received, 8),
-        "sent": round(sent, 8)
+        "balance": (received - sent - pending_sent) / unit,
+        "confirmed_balance": (received - sent) / unit,
+        "pending_sent": pending_sent / unit,
+        "received": received / unit,
+        "sent": sent / unit
     }), 200
 
 
@@ -124,9 +124,9 @@ def sign_transaction():
     """
     Sign a transaction payload server-side using the provided private key.
     Accepts: { private_key, sender, recipient, amount }
-    Returns: { signature }
+    Returns: { signature, nonce, expires_at }
     """
-    values = request.get_json()
+    values = _json_object()
     required = ['private_key', 'sender', 'recipient', 'amount']
 
     if not values:
@@ -134,6 +134,9 @@ def sign_transaction():
 
     if not all(k in values for k in required):
         return jsonify({"error": "Missing values"}), 400
+
+    if not isinstance(values['private_key'], str):
+        return jsonify({"error": "Invalid private key"}), 400
 
     try:
         amount = blockchain.validate_transaction_fields(
@@ -143,19 +146,31 @@ def sign_transaction():
         return jsonify({"error": str(e)}), 400
 
     nonce = blockchain.next_nonce(values['sender'])
+    expires_at = blockchain.new_expiry()
 
-    signature = WalletCrypto.sign_transaction(
-        values['private_key'],
-        values['sender'],
-        values['recipient'],
-        amount,
-        nonce
-    )
+    # Signatures are deterministic: if this exact payload was already
+    # rejected (e.g. re-signing within the same second), pick a new expiry.
+    for _ in range(10):
+        signature = WalletCrypto.sign_transaction(
+            values['private_key'],
+            values['sender'],
+            values['recipient'],
+            amount,
+            nonce,
+            expires_at
+        )
+        if signature is None or not blockchain.signature_seen(signature):
+            break
+        expires_at -= 1
 
     if signature is None:
         return jsonify({"error": "Could not sign transaction — invalid private key or key does not match sender"}), 400
 
-    return jsonify({"signature": signature, "nonce": nonce}), 200
+    return jsonify({
+        "signature": signature,
+        "nonce": nonce,
+        "expires_at": expires_at
+    }), 200
 
 
 # ── Mine ──────────────────────────────────────────────────────────────────────
@@ -205,7 +220,7 @@ def full_chain():
 
 @app.route('/transactions/new', methods=['POST'])
 def new_transaction():
-    values = request.get_json()
+    values = _json_object()
     required = ['sender', 'recipient', 'amount']
 
     if not values:
@@ -221,7 +236,7 @@ def new_transaction():
             values['amount']
         )
     except TransactionError as e:
-        return jsonify({"error": str(e)}), 400
+        return jsonify({"error": str(e)}), e.status_code
 
     return jsonify({
         "message": f"Transaction will be added to Block {index}"
@@ -232,7 +247,7 @@ def new_transaction():
 
 @app.route('/wallet/transactions', methods=['POST'])
 def wallet_transaction():
-    values = request.get_json()
+    values = _json_object()
     required = ['sender', 'recipient', 'amount', 'signature']
 
     if not values:
@@ -247,10 +262,11 @@ def wallet_transaction():
             values['recipient'],
             values['amount'],
             values['signature'],
-            values.get('nonce')
+            values.get('nonce'),
+            values.get('expires_at')
         )
     except TransactionError as e:
-        return jsonify({"error": str(e)}), 400
+        return jsonify({"error": str(e)}), e.status_code
 
     return jsonify({
         "message": f"Transaction will be added to Block {index}"
