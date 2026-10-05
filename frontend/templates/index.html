@@ -13,6 +13,8 @@
 <!-- Google Fonts: Space Grotesk (display) + IBM Plex Sans (body) + JetBrains Mono (data) -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- QRCode.js (local-friendly, no external runtime dep) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
 <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
@@ -47,7 +49,8 @@
       <button class="btn bf-icon-btn" id="refreshBtn" title="Refresh now">
         <i class="bi bi-arrow-clockwise" id="refreshIcon"></i>
       </button>
-      <a href="https://github.com" target="_blank" rel="noopener" class="btn bf-icon-btn d-none d-sm-inline-flex" title="GitHub">
+      <!-- Bug #18 fix: link to the actual project repository instead of github.com homepage -->
+      <a href="https://github.com/prasenjitshinde11/BlockNova" target="_blank" rel="noopener" class="btn bf-icon-btn d-none d-sm-inline-flex" title="GitHub">
         <i class="bi bi-github"></i>
       </a>
     </div>
@@ -58,6 +61,7 @@
         <li class="nav-item"><a class="nav-link" href="#explorer">Explorer</a></li>
         <li class="nav-item"><a class="nav-link" href="#wallet">Wallet</a></li>
         <li class="nav-item"><a class="nav-link" href="#transactions">Transactions</a></li>
+        <li class="nav-item"><a class="nav-link" href="#mempool">Mempool</a></li>
         <li class="nav-item"><a class="nav-link" href="#mining">Mining</a></li>
         <li class="nav-item"><a class="nav-link" href="#analytics">Analytics</a></li>
       </ul>
@@ -75,6 +79,7 @@
       <a href="#explorer" class="bf-side-link" data-target="explorer"><i class="bi bi-search"></i><span>Explorer</span></a>
       <a href="#wallet" class="bf-side-link" data-target="wallet"><i class="bi bi-wallet2"></i><span>Wallet</span></a>
       <a href="#transactions" class="bf-side-link" data-target="transactions"><i class="bi bi-arrow-left-right"></i><span>Transactions</span></a>
+      <a href="#mempool" class="bf-side-link" data-target="mempool"><i class="bi bi-hourglass-split"></i><span>Mempool</span></a>
       <a href="#mining" class="bf-side-link" data-target="mining"><i class="bi bi-cpu-fill"></i><span>Mining</span></a>
       <a href="#analytics" class="bf-side-link" data-target="analytics"><i class="bi bi-bar-chart-fill"></i><span>Analytics</span></a>
       <a href="#recent" class="bf-side-link" data-target="recent"><i class="bi bi-clock-history"></i><span>Recent Activity</span></a>
@@ -170,6 +175,29 @@
           </div>
         </div>
       </div>
+      <!-- Quick-win: block time + pending tx row -->
+      <div class="row g-3 g-lg-4 mt-1">
+        <div class="col-6 col-lg-3">
+          <div class="bf-card bf-stat-card fade-up" style="--delay:300ms">
+            <div class="bf-stat-icon" style="background:rgba(139,92,246,.15);color:#8B5CF6"><i class="bi bi-clock-fill"></i></div>
+            <div>
+              <p class="bf-stat-label">Avg Block Time</p>
+              <h3 class="bf-stat-value" id="stat-blocktime"><span class="bf-skeleton-line"></span></h3>
+              <span class="bf-stat-trend" id="stat-blocktime-trend">&nbsp;</span>
+            </div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="bf-card bf-stat-card fade-up" style="--delay:360ms">
+            <div class="bf-stat-icon" style="background:rgba(255,176,32,.15);color:var(--bf-amber)"><i class="bi bi-hourglass-split"></i></div>
+            <div>
+              <p class="bf-stat-label">Pending Txs</p>
+              <h3 class="bf-stat-value" id="stat-pending"><span class="bf-skeleton-line"></span></h3>
+              <span class="bf-stat-trend" id="stat-pending-trend">&nbsp;</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- ============ BLOCKCHAIN EXPLORER ============ -->
@@ -179,12 +207,32 @@
           <p class="bf-section-eyebrow">Ledger</p>
           <h2 class="bf-section-title">Blockchain Explorer</h2>
         </div>
-        <div class="bf-search-box">
-          <i class="bi bi-search"></i>
-          <input type="number" min="0" class="form-control" id="blockSearchInput" placeholder="Search by block index…">
-          <button class="btn bf-btn-primary btn-sm" id="blockSearchBtn">Search</button>
-          <button class="btn bf-btn-ghost btn-sm" id="blockSearchClear">Clear</button>
+        <div class="d-flex gap-2 flex-wrap align-items-center">
+          <div class="bf-search-box">
+            <i class="bi bi-search"></i>
+            <input type="number" min="0" class="form-control" id="blockSearchInput" placeholder="Search by block index…">
+            <button class="btn bf-btn-primary btn-sm" id="blockSearchBtn">Search</button>
+            <button class="btn bf-btn-ghost btn-sm" id="blockSearchClear">Clear</button>
+          </div>
+          <!-- Export buttons (Quick-win: Export Chain) -->
+          <button class="btn bf-btn-ghost btn-sm" id="exportJsonBtn" title="Download chain as JSON"><i class="bi bi-filetype-json"></i> JSON</button>
+          <button class="btn bf-btn-ghost btn-sm" id="exportCsvBtn" title="Download chain as CSV"><i class="bi bi-filetype-csv"></i> CSV</button>
         </div>
+      </div>
+
+      <!-- Quick-win: Transaction Search -->
+      <div class="bf-card bf-glass mb-3">
+        <div class="bf-key-head">
+          <i class="bi bi-person-lines-fill" style="color:var(--bf-secondary)"></i>
+          <span>Transaction Search</span>
+          <span class="ms-auto bf-hint" id="txSearchCount"></span>
+        </div>
+        <div class="d-flex gap-2 align-items-center flex-wrap">
+          <input type="text" class="form-control bf-input bf-mono flex-grow-1" id="txSearchInput" placeholder="Paste any partial wallet address to find transactions…">
+          <button class="btn bf-btn-primary btn-sm" id="txSearchBtn"><i class="bi bi-search"></i> Search</button>
+          <button class="btn bf-btn-ghost btn-sm" id="txSearchClear"><i class="bi bi-x-circle"></i> Clear</button>
+        </div>
+        <div id="txSearchResults" class="mt-2 d-none"></div>
       </div>
 
       <div class="bf-card bf-glass">
@@ -225,6 +273,7 @@
         </button>
       </div>
 
+      <!-- QR Code button added to public key card actions -->
       <div class="row g-3 g-lg-4">
         <div class="col-lg-6">
           <div class="bf-card bf-glass h-100">
@@ -237,6 +286,7 @@
             </div>
             <div class="bf-key-actions">
               <button class="btn bf-btn-ghost btn-sm" data-copy-target="publicKeyOut"><i class="bi bi-clipboard"></i> Copy</button>
+              <button class="btn bf-btn-ghost btn-sm" id="showQrBtn" disabled><i class="bi bi-qr-code"></i> QR Code</button>
             </div>
           </div>
         </div>
@@ -354,6 +404,26 @@
       </div>
     </section>
 
+  <!-- ============ MEMPOOL SECTION ============ -->
+  <section class="bf-section" id="mempool">
+    <div class="bf-section-head">
+      <div>
+        <p class="bf-section-eyebrow">Pending</p>
+        <h2 class="bf-section-title">Transaction Mempool</h2>
+      </div>
+      <button class="btn bf-btn-ghost btn-sm" id="mempoolRefreshBtn"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+    </div>
+    <div class="bf-card bf-glass">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <span class="bf-hint"><i class="bi bi-info-circle"></i> Unconfirmed transactions waiting to be included in the next mined block.</span>
+        <span class="badge" style="background:rgba(255,176,32,.15);color:var(--bf-amber);font-size:.8rem" id="mempoolCount">— pending</span>
+      </div>
+      <div id="mempoolFeed">
+        <div class="bf-empty-state"><i class="bi bi-inbox"></i><p>Mempool is empty — all transactions are confirmed.</p></div>
+      </div>
+    </div>
+  </section>
+
     <!-- ============ MINING SECTION ============ -->
     <section class="bf-section" id="mining">
       <div class="bf-card bf-glass bf-mining-card">
@@ -387,7 +457,7 @@
         </div>
       </div>
       <div class="row g-3 g-lg-4">
-        <div class="col-lg-6">
+        <div class="col-lg-4">
           <div class="bf-card bf-glass">
             <h5 class="bf-chart-title"><i class="bi bi-graph-up-arrow"></i> Block Growth</h5>
             <div class="bf-chart-wrap">
@@ -399,7 +469,7 @@
             </div>
           </div>
         </div>
-        <div class="col-lg-6">
+        <div class="col-lg-4">
           <div class="bf-card bf-glass">
             <h5 class="bf-chart-title"><i class="bi bi-bar-chart-line-fill"></i> Transaction Volume</h5>
             <div class="bf-chart-wrap">
@@ -407,6 +477,19 @@
               <div class="bf-chart-empty" id="volChartEmpty">
                 <i class="bi bi-bar-chart-line-fill"></i>
                 <p>Submit transactions and mine blocks to see volume</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Quick-win: Block Time Chart -->
+        <div class="col-lg-4">
+          <div class="bf-card bf-glass">
+            <h5 class="bf-chart-title"><i class="bi bi-clock-history"></i> Block Time (s)</h5>
+            <div class="bf-chart-wrap">
+              <canvas id="blockTimeChart"></canvas>
+              <div class="bf-chart-empty" id="timeChartEmpty">
+                <i class="bi bi-clock-history"></i>
+                <p>Mine 2+ blocks to see timing</p>
               </div>
             </div>
           </div>
@@ -459,6 +542,20 @@
   </main>
 </div>
 
+<!-- ============ QR CODE MODAL ============ -->
+<div class="bf-qr-overlay d-none" id="qrOverlay">
+  <div class="bf-qr-modal">
+    <div class="bf-qr-modal-header">
+      <span><i class="bi bi-qr-code me-2"></i>Public Key QR Code</span>
+      <button class="btn bf-icon-btn" id="qrCloseBtn"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="bf-qr-body">
+      <div id="qrCodeCanvas"></div>
+      <p class="bf-hint mt-3 text-center"><i class="bi bi-shield-lock-fill" style="color:var(--bf-green)"></i> Scan to share your public wallet address</p>
+    </div>
+  </div>
+</div>
+
 <!-- ============ FOOTER ============ -->
 <footer class="bf-footer">
   <div class="bf-footer-inner">
@@ -468,7 +565,8 @@
     </div>
     <p class="bf-footer-text">Secure Blockchain Ledger with RSA Cryptography and Proof-of-Work Mining.</p>
     <div class="bf-footer-links">
-      <a href="https://github.com" target="_blank" rel="noopener"><i class="bi bi-github"></i> GitHub</a>
+      <!-- Bug #18 fix: link to actual repo -->
+      <a href="https://github.com/prasenjitshinde11/BlockNova" target="_blank" rel="noopener"><i class="bi bi-github"></i> GitHub</a>
       <span class="bf-footer-version">v1.0.0</span>
     </div>
   </div>

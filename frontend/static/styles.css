@@ -559,3 +559,114 @@ tr.expanded .bf-expand-icon{ transform:rotate(90deg); color:var(--bf-primary); }
   .bf-stat-value{ font-size:1.25rem; }
   .bf-card{ padding:1.15rem; }
 }
+
+/* ==========================================================================
+   Quick-win Features — QR Code Modal
+   ========================================================================== */
+.bf-qr-overlay{
+  position:fixed; inset:0; z-index:2000;
+  background:rgba(11,18,34,0.82);
+  backdrop-filter:blur(8px);
+  display:flex; align-items:center; justify-content:center;
+  animation:fadeInOverlay 200ms ease;
+}
+@keyframes fadeInOverlay{ from{opacity:0} to{opacity:1} }
+
+.bf-qr-modal{
+  background:var(--bf-card);
+  border:1px solid var(--bf-border);
+  border-radius:var(--bf-radius-lg);
+  box-shadow:0 24px 64px rgba(0,0,0,0.55);
+  min-width:320px; max-width:400px; width:90%;
+  overflow:hidden;
+  animation:slideUpModal 220ms cubic-bezier(.2,.8,.2,1);
+}
+@keyframes slideUpModal{ from{transform:translateY(24px);opacity:0} to{transform:translateY(0);opacity:1} }
+
+.bf-qr-modal-header{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:1rem 1.25rem;
+  border-bottom:1px solid var(--bf-border);
+  font-weight:600; font-size:0.95rem; color:var(--bf-text);
+}
+.bf-qr-body{
+  padding:2rem 1.5rem 1.5rem;
+  display:flex; flex-direction:column; align-items:center;
+}
+#qrCodeCanvas{ line-height:0; border-radius:12px; overflow:hidden; }
+#qrCodeCanvas canvas, #qrCodeCanvas img{ border-radius:10px; display:block; }
+
+/* ==========================================================================
+   Quick-win Features — Mempool
+   ========================================================================== */
+.bf-mempool-item{
+  display:flex; align-items:center; gap:1rem;
+  padding:0.85rem 0;
+  border-bottom:1px solid var(--bf-border);
+}
+.bf-mempool-item:last-child{ border-bottom:none; }
+.bf-mempool-avatar{
+  width:36px; height:36px; border-radius:10px; flex-shrink:0;
+  background:rgba(255,176,32,.12);
+  display:flex; align-items:center; justify-content:center;
+  color:var(--bf-amber); font-size:0.95rem;
+}
+.bf-mempool-info{ flex:1; min-width:0; }
+.bf-mempool-parties{
+  font-size:0.82rem; color:var(--bf-text-muted);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  font-family:var(--bf-font-mono);
+}
+.bf-mempool-label{
+  font-size:0.72rem; color:var(--bf-amber);
+  font-weight:600; letter-spacing:.04em; margin-top:2px;
+}
+.bf-mempool-amount{
+  font-family:var(--bf-font-mono); font-weight:600;
+  color:var(--bf-amber); font-size:0.9rem; white-space:nowrap;
+}
+
+/* ==========================================================================
+   Quick-win Features — Transaction Search Results
+   ========================================================================== */
+.bf-search-result{
+  display:flex; align-items:center; gap:1rem;
+  padding:0.8rem 1rem;
+  border-radius:var(--bf-radius-sm);
+  background:rgba(var(--bf-card-rgb),0.5);
+  margin-bottom:0.5rem;
+  border:1px solid var(--bf-border);
+  transition:border-color var(--bf-transition);
+}
+.bf-search-result:hover{ border-color:rgba(var(--bf-primary-rgb),0.35); }
+.bf-search-result-meta{
+  flex:1; min-width:0;
+}
+.bf-search-result-parties{
+  font-family:var(--bf-font-mono); font-size:0.8rem;
+  color:var(--bf-text-muted);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.bf-search-result-block{
+  font-size:0.72rem; color:var(--bf-text-muted); margin-top:2px;
+}
+.bf-search-result-amount{
+  font-family:var(--bf-font-mono); font-weight:700;
+  color:var(--bf-green); font-size:0.9rem; white-space:nowrap;
+}
+
+/* ==========================================================================
+   Quick-win Features — Confirmation Badge on Recent Tx
+   ========================================================================== */
+.bf-confirm-badge{
+  display:inline-flex; align-items:center; gap:3px;
+  font-size:0.68rem; font-weight:600;
+  padding:2px 8px; border-radius:999px;
+  background:rgba(34,211,166,0.12);
+  color:var(--bf-green);
+  white-space:nowrap;
+}
+.bf-confirm-badge.bf-confirm-low{
+  background:rgba(255,176,32,0.12);
+  color:var(--bf-amber);
+}

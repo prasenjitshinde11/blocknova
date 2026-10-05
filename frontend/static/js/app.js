@@ -9,17 +9,23 @@
   /* ------------------------------------------------------------------ *
    * Config
    * ------------------------------------------------------------------ */
-  const API_BASE = 'http://127.0.0.1:5000';
+  // Bug #7 fix: derive API base from the current page origin instead of
+  // hardcoding 127.0.0.1:5000.  The hardcoded value breaks every non-localhost
+  // deployment because every fetch() fails (8 s timeout) before the demo
+  // fallback kicks in, making the whole UI feel frozen on load.
+  const API_BASE = window.location.origin;
   const ENDPOINTS = {
-    root: '/',
-    mine: '/mine',
-    chain: '/chain',
-    walletCreate: '/wallet/create',
-    walletTx: '/wallet/transactions',
-    sign: '/api/sign',
-    stats: '/api/stats',
-    balance: '/api/balance',
-    health: '/api/health',
+    root:        '/',
+    mine:        '/mine',
+    chain:       '/chain',
+    walletCreate:'/wallet/create',
+    walletTx:   '/wallet/transactions',
+    sign:        '/api/sign',
+    stats:       '/api/stats',
+    balance:     '/api/balance',
+    health:      '/api/health',
+    mempool:     '/api/mempool',
+    search:      '/api/search',
   };
   const REFRESH_INTERVAL_MS = 10000;
 
@@ -243,8 +249,23 @@
             : '<span style="color:var(--bf-amber)">Invalid!</span>');
           $('#stat-blocks-trend').textContent = `+${data.total_blocks} blocks total`;
           $('#stat-tx-trend').textContent = `${data.total_transactions} confirmed`;
+
+          // Quick-win: block time + pending tx stats
+          if (typeof data.avg_block_time === 'number') {
+            const bt = data.avg_block_time;
+            setStatValue('#stat-blocktime', bt > 0 ? `${bt}s` : '—');
+            $('#stat-blocktime-trend').textContent = bt > 0 ? 'Per block avg' : 'Need 2+ blocks';
+          }
+          if (typeof data.pending_tx === 'number') {
+            setStatValue('#stat-pending', data.pending_tx.toLocaleString());
+            $('#stat-pending-trend').textContent = data.pending_tx ? 'Awaiting mining' : 'None pending';
+          }
         }
       }).catch(() => { /* silent — chain data already displayed */ });
+    } else {
+      // Demo fallback values
+      setStatValue('#stat-blocktime', '—');
+      setStatValue('#stat-pending', '0');
     }
   }
 
@@ -326,9 +347,19 @@
   function renderRecentTx() {
     const feed = $('#recentTxFeed');
     const allTx = [];
+    const chainLen = state.chain.length;
+
+    // Confirmed transactions from mined blocks
     [...state.chain].sort((a, b) => b.index - a.index).forEach(block => {
       (block.transactions || []).forEach(t => allTx.push({ ...t, blockIndex: block.index, ts: block.timestamp }));
     });
+
+    // Bug #11 fix: pending demo transactions live in state.pendingTx (a separate
+    // virtual pool), not inside mined block objects.  Prepend them so they appear
+    // at the top of the feed, visually distinct as "(pending)".
+    const pending = (state.pendingTx || []).slice().reverse();
+    pending.forEach(t => allTx.unshift(t));
+
     const latest = allTx.slice(0, 8);
 
     if (!latest.length) {
@@ -336,15 +367,26 @@
       return;
     }
 
-    feed.innerHTML = latest.map(t => `
+    feed.innerHTML = latest.map(t => {
+      // Quick-win: confirmation count
+      const isPending = t.blockIndex === '(pending)';
+      const confs = isPending ? 0 : Math.max(0, chainLen - t.blockIndex);
+      const confBadge = isPending
+        ? `<span class="bf-confirm-badge bf-confirm-low"><i class="bi bi-hourglass-split"></i> Pending</span>`
+        : confs <= 2
+          ? `<span class="bf-confirm-badge bf-confirm-low"><i class="bi bi-shield-check"></i> ${confs} conf${confs !== 1 ? 's' : ''}</span>`
+          : `<span class="bf-confirm-badge"><i class="bi bi-shield-fill-check"></i> ${confs} confs</span>`;
+
+      return `
       <div class="bf-tx-item fade-up">
         <div class="bf-tx-avatar"><i class="bi bi-arrow-left-right"></i></div>
         <div class="bf-tx-main">
           <div class="bf-tx-parties">${truncateKey(t.sender, 14)} <i class="bi bi-arrow-right mx-1"></i> ${truncateKey(t.recipient, 14)}</div>
-          <div class="bf-tx-meta">Block #${t.blockIndex} · ${fmtTime(t.ts)}</div>
+          <div class="bf-tx-meta">Block #${t.blockIndex} · ${fmtTime(t.ts)} ${confBadge}</div>
         </div>
         <div class="bf-tx-amount">${t.amount ?? '0'} BFC</div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   }
 
   /* ------------------------------------------------------------------ *
@@ -363,7 +405,7 @@
     // Safety: Chart.js CDN may fail to load (offline/blocked)
     if (typeof Chart === 'undefined') {
       console.warn('[BlockFusion] Chart.js not available — charts disabled.');
-      ['#blockGrowthChart', '#txVolumeChart'].forEach(sel => {
+      ['#blockGrowthChart', '#txVolumeChart', '#blockTimeChart'].forEach(sel => {
         const canvas = $(sel);
         if (canvas && canvas.parentElement) {
           canvas.style.display = 'none';
@@ -419,6 +461,31 @@
         }] },
         options: chartOptions(t, true),
       });
+
+      // Quick-win: Block Time Chart
+      const timeCtx = $('#blockTimeChart').getContext('2d');
+      const timeGradient = timeCtx.createLinearGradient(0, 0, 0, 260);
+      timeGradient.addColorStop(0, 'rgba(139,92,246,0.5)');
+      timeGradient.addColorStop(1, 'rgba(139,92,246,0.05)');
+
+      state.charts.blockTime = new Chart(timeCtx, {
+        type: 'line',
+        data: { labels: [], datasets: [{
+          label: 'Block Time (s)',
+          data: [],
+          borderColor: '#8B5CF6',
+          backgroundColor: timeGradient,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          pointBackgroundColor: '#8B5CF6',
+          pointBorderColor: '#0C0F17',
+          borderWidth: 2,
+        }] },
+        options: chartOptions(t, false),
+      });
+
     } catch (err) {
       console.error('[BlockFusion] Chart initialisation failed:', err);
     }
@@ -455,26 +522,33 @@
 
     // Toggle empty-state overlays
     const growthEmpty = $('#growthChartEmpty');
-    const volEmpty   = $('#volChartEmpty');
+    const volEmpty    = $('#volChartEmpty');
+    const timeEmpty   = $('#timeChartEmpty');
     if (growthEmpty) growthEmpty.classList.toggle('d-none', hasRealData);
-    if (volEmpty)   volEmpty.classList.toggle('d-none', hasRealData);
+    if (volEmpty)    volEmpty.classList.toggle('d-none', hasRealData);
+    if (timeEmpty)   timeEmpty.classList.toggle('d-none', hasRealData);
 
     // Build chart data — pad to at least 5 visible points so bars/lines render
-    let labels, cumulative, txCounts;
+    let labels, cumulative, txCounts, blockTimes;
     if (sorted.length === 0) {
-      labels = ['#1','#2','#3','#4','#5'];
+      labels     = ['#1','#2','#3','#4','#5'];
       cumulative = [1,2,3,4,5];
       txCounts   = [0,0,0,0,0];
+      blockTimes = [0,0,0,0,0];
     } else if (sorted.length === 1) {
-      // Extend genesis block with 4 zero-fill preview points
       const base = sorted[0];
       labels     = [`#${base.index}`, '#2', '#3', '#4', '#5'];
       cumulative = [1, 2, 3, 4, 5];
       txCounts   = [(base.transactions && base.transactions.length) || 0, 0, 0, 0, 0];
+      blockTimes = [0, 0, 0, 0, 0];
     } else {
       labels     = sorted.map(b => `#${b.index}`);
       cumulative = sorted.map((_, i) => i + 1);
       txCounts   = sorted.map(b => (b.transactions && b.transactions.length) || 0);
+      // Quick-win: block time between consecutive blocks (first block = 0)
+      blockTimes = sorted.map((b, i) =>
+        i === 0 ? 0 : Math.round(b.timestamp - sorted[i - 1].timestamp)
+      );
     }
 
     if (state.charts.growth) {
@@ -487,6 +561,12 @@
       state.charts.volume.data.datasets[0].data = txCounts;
       state.charts.volume.update();
     }
+    // Quick-win: update block time chart
+    if (state.charts.blockTime) {
+      state.charts.blockTime.data.labels = labels;
+      state.charts.blockTime.data.datasets[0].data = blockTimes;
+      state.charts.blockTime.update();
+    }
   }
 
   /* ------------------------------------------------------------------ *
@@ -494,7 +574,12 @@
    * ------------------------------------------------------------------ */
   function renderAll() {
     renderStats();
-    renderExplorer($('#blockSearchInput') ? $('#blockSearchInput').value.trim() : null);
+    // Bug #12 fix: pass explicit null so renderExplorer() skips filtering on
+    // initial render.  The previous code passed an empty string '' which worked
+    // by coincidence (the '' guard existed) but was fragile and misleading.
+    const searchInput = $('#blockSearchInput');
+    const currentFilter = (searchInput && searchInput.value.trim()) ? searchInput.value.trim() : null;
+    renderExplorer(currentFilter);
     renderRecentTx();
     updateCharts();
   }
@@ -520,9 +605,12 @@
           if (state.liveMode) showToast('Wallet Service', 'Backend unreachable — generated a demo wallet instead.', 'info');
         }
         state.wallet = wallet;
-        pubOut.textContent = wallet.public_key;
+        pubOut.textContent  = wallet.public_key;
         privOut.textContent = wallet.private_key;
         downloadBtn.disabled = false;
+        // Quick-win: enable QR button now that wallet exists
+        const qrBtn = $('#showQrBtn');
+        if (qrBtn) qrBtn.disabled = false;
         showToast('Wallet Created', 'A new keypair has been generated successfully.', 'success');
       } catch (err) {
         showToast('Wallet Error', 'Could not generate a wallet. Please try again.', 'error');
@@ -677,6 +765,16 @@
           return;
         }
 
+        // Bug #8 mitigation: warn the user if the private key would be sent
+        // over a non-HTTPS connection where it could be intercepted.
+        if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+          showToast(
+            '⚠️ Security Warning',
+            'You are not on HTTPS. Your private key will be sent unencrypted. Use HTTPS in production.',
+            'error'
+          );
+        }
+
         autoFillBtn.disabled = true;
         autoFillBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Signing…';
         try {
@@ -724,13 +822,13 @@
           // Use the signed wallet endpoint (primary)
           await safeFetch(ENDPOINTS.walletTx, { method: 'POST', body: JSON.stringify(payload) });
         } catch (err) {
-          // Demo fallback: append to the most recent block's pending list visually.
-          if (state.chain.length) {
-            const last = state.chain[state.chain.length - 1];
-            last.transactions = last.transactions || [];
-            last.transactions.push({ sender, recipient, amount: parseFloat(amount) });
-          }
-          if (state.liveMode) showToast('Offline Mode', 'Backend unreachable — transaction recorded locally for demo purposes.', 'info');
+          // Bug #11 fix: the old fallback mutated the LAST MINED block's
+          // transaction list, which is incorrect — mined blocks are immutable.
+          // Pending transactions belong in a separate pool, not in a confirmed block.
+          // We push to state.pendingTx (a virtual pool) and surface it in the feed.
+          state.pendingTx = state.pendingTx || [];
+          state.pendingTx.push({ sender, recipient, amount: parseFloat(amount), blockIndex: '(pending)', ts: Date.now() / 1000 });
+          if (state.liveMode) showToast('Offline Mode', 'Backend unreachable — transaction queued locally for demo purposes.', 'info');
         }
         showToast('Transaction Submitted', 'Your transaction has been queued for the next block.', 'success');
         form.reset();
@@ -783,6 +881,7 @@
 
         showToast('Block Mined ⛏', `Block #${block.index} was sealed successfully.`, 'success');
         renderAll();
+        loadMempool(); // refresh mempool after mining (pending txs just got confirmed)
       } catch (err) {
         showToast('Mining Failed', 'Unable to mine a new block right now.', 'error');
       } finally {
@@ -959,6 +1058,216 @@
   }
 
   /* ------------------------------------------------------------------ *
+   * Quick-win: QR Code for public key
+   * ------------------------------------------------------------------ */
+  function initQRCode() {
+    const showBtn  = $('#showQrBtn');
+    const overlay  = $('#qrOverlay');
+    const closeBtn = $('#qrCloseBtn');
+    const canvas   = $('#qrCodeCanvas');
+    if (!showBtn || !overlay) return;
+
+    showBtn.addEventListener('click', () => {
+      if (!state.wallet) return;
+      canvas.innerHTML = '';
+      try {
+        new QRCode(canvas, {
+          text:          state.wallet.public_key,
+          width:         220,
+          height:        220,
+          colorDark:    '#0F172A',
+          colorLight:   '#FFFFFF',
+          correctLevel:  QRCode.CorrectLevel.M,
+        });
+      } catch (e) {
+        canvas.innerHTML = '<p class="bf-hint">QR library not loaded.</p>';
+      }
+      overlay.classList.remove('d-none');
+    });
+
+    const close = () => overlay.classList.add('d-none');
+    closeBtn.addEventListener('click', close);
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+
+    // Enable QR button when wallet is generated
+    const origWalletCreate = $('#createWalletBtn');
+    if (origWalletCreate) {
+      const observer = new MutationObserver(() => {
+        showBtn.disabled = !state.wallet;
+      });
+      observer.observe(origWalletCreate, { attributes: true });
+    }
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Quick-win: Export Chain as JSON / CSV
+   * ------------------------------------------------------------------ */
+  function initExport() {
+    const jsonBtn = $('#exportJsonBtn');
+    const csvBtn  = $('#exportCsvBtn');
+
+    function download(content, filename, mime) {
+      const blob = new Blob([content], { type: mime });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = filename;
+      a.style.display = 'none';          // prevent any layout flash
+      document.body.appendChild(a);
+      a.click();
+      // Delay revocation — revoking synchronously cancels the download in
+      // Firefox and some Chrome versions before the browser can start it.
+      setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 150);
+    }
+
+    if (jsonBtn) {
+      jsonBtn.addEventListener('click', async () => {
+        jsonBtn.disabled = true;
+        jsonBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        try {
+          // Always fetch fresh chain data so the export reflects the real DB state
+          let chainData = state.chain;
+          if (state.liveMode) {
+            try {
+              const fresh = await safeFetch(ENDPOINTS.chain);
+              chainData = Array.isArray(fresh) ? fresh : (fresh.chain || state.chain);
+            } catch { /* fall back to cached state */ }
+          }
+          if (!chainData.length) { showToast('No Data', 'Chain is empty — mine a block first.', 'info'); return; }
+          download(
+            JSON.stringify(chainData, null, 2),
+            `blockfusion-chain-${Date.now()}.json`,
+            'application/json'
+          );
+          showToast('Exported', `Chain (${chainData.length} blocks) downloaded as JSON.`, 'success');
+        } finally {
+          jsonBtn.disabled = false;
+          jsonBtn.innerHTML = '<i class="bi bi-filetype-json"></i> JSON';
+        }
+      });
+    }
+
+    if (csvBtn) {
+      csvBtn.addEventListener('click', async () => {
+        csvBtn.disabled = true;
+        csvBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        try {
+          let chainData = state.chain;
+          if (state.liveMode) {
+            try {
+              const fresh = await safeFetch(ENDPOINTS.chain);
+              chainData = Array.isArray(fresh) ? fresh : (fresh.chain || state.chain);
+            } catch { /* fall back to cached state */ }
+          }
+          if (!chainData.length) { showToast('No Data', 'Chain is empty — mine a block first.', 'info'); return; }
+          const rows = ['Block Index,Timestamp,Proof,Previous Hash,Tx Count'];
+          chainData.forEach(b => {
+            const ts = b.timestamp ? new Date(b.timestamp * 1000).toISOString() : '';
+            const prevHash = `"${b.previous_hash || ''}"`;   // quote to avoid CSV comma issues
+            rows.push(`${b.index},${ts},${b.proof},${prevHash},${(b.transactions||[]).length}`);
+          });
+          download(rows.join('\n'), `blockfusion-chain-${Date.now()}.csv`, 'text/csv');
+          showToast('Exported', `Chain (${chainData.length} blocks) downloaded as CSV.`, 'success');
+        } finally {
+          csvBtn.disabled = false;
+          csvBtn.innerHTML = '<i class="bi bi-filetype-csv"></i> CSV';
+        }
+      });
+    }
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Quick-win: Mempool
+   * ------------------------------------------------------------------ */
+  async function loadMempool() {
+    const feed  = $('#mempoolFeed');
+    const count = $('#mempoolCount');
+    if (!feed) return;
+
+    try {
+      const data = await safeFetch(ENDPOINTS.mempool);
+      const pending = data.pending || [];
+      count.textContent = `${pending.length} pending`;
+
+      if (!pending.length) {
+        feed.innerHTML = '<div class="bf-empty-state"><i class="bi bi-inbox"></i><p>Mempool is empty — all transactions are confirmed.</p></div>';
+        return;
+      }
+
+      feed.innerHTML = pending.map(tx => `
+        <div class="bf-mempool-item">
+          <div class="bf-mempool-avatar"><i class="bi bi-hourglass-split"></i></div>
+          <div class="bf-mempool-info">
+            <div class="bf-mempool-parties">${truncateKey(tx.sender,20)} → ${truncateKey(tx.recipient,20)}</div>
+            <div class="bf-mempool-label">UNCONFIRMED · ID #${tx.id}</div>
+          </div>
+          <div class="bf-mempool-amount">${tx.amount} BFC</div>
+        </div>`).join('');
+    } catch {
+      feed.innerHTML = '<div class="bf-empty-state"><i class="bi bi-wifi-off"></i><p>Could not load mempool — backend offline.</p></div>';
+    }
+  }
+
+  function initMempool() {
+    loadMempool();
+    const refreshBtn = $('#mempoolRefreshBtn');
+    if (refreshBtn) refreshBtn.addEventListener('click', loadMempool);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Quick-win: Transaction Search
+   * ------------------------------------------------------------------ */
+  function initTxSearch() {
+    const input     = $('#txSearchInput');
+    const searchBtn = $('#txSearchBtn');
+    const clearBtn  = $('#txSearchClear');
+    const results   = $('#txSearchResults');
+    const countEl   = $('#txSearchCount');
+    if (!input || !results) return;
+
+    async function doSearch() {
+      const q = input.value.trim();
+      if (q.length < 3) {
+        showToast('Too Short', 'Enter at least 3 characters to search.', 'info');
+        return;
+      }
+      results.classList.remove('d-none');
+      results.innerHTML = '<div class="bf-hint"><span class="spinner-border spinner-border-sm me-1"></span> Searching…</div>';
+      try {
+        const data = await safeFetch(`${ENDPOINTS.search}?q=${encodeURIComponent(q)}`);
+        const list = data.results || [];
+        countEl.textContent = `${list.length} result${list.length !== 1 ? 's' : ''}`;
+
+        if (!list.length) {
+          results.innerHTML = '<div class="bf-hint"><i class="bi bi-search me-1"></i>No transactions found for that address fragment.</div>';
+          return;
+        }
+
+        results.innerHTML = list.map(r => `
+          <div class="bf-search-result">
+            <div class="bf-search-result-meta">
+              <div class="bf-search-result-parties">${truncateKey(r.sender,22)} → ${truncateKey(r.recipient,22)}</div>
+              <div class="bf-search-result-block"><i class="bi bi-box-seam me-1"></i>Block #${r.block_index} · ${fmtTime(r.timestamp)}</div>
+            </div>
+            <div class="bf-search-result-amount">${r.amount} BFC</div>
+          </div>`).join('');
+      } catch {
+        results.innerHTML = '<div class="bf-hint"><i class="bi bi-exclamation-triangle me-1"></i>Search unavailable — backend offline.</div>';
+      }
+    }
+
+    searchBtn.addEventListener('click', doSearch);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+    clearBtn.addEventListener('click', () => {
+      input.value = '';
+      results.classList.add('d-none');
+      results.innerHTML = '';
+      countEl.textContent = '';
+    });
+  }
+
+  /* ------------------------------------------------------------------ *
    * Init
    * ------------------------------------------------------------------ */
   document.addEventListener('DOMContentLoaded', () => {
@@ -970,6 +1279,11 @@
     initTxForm();
     initMining();
     initCharts();
+    // Quick-win inits
+    initQRCode();
+    initExport();
+    initMempool();
+    initTxSearch();
 
     loadChain().then(() => {
       // Force a chart update after data is loaded to guarantee canvas renders
