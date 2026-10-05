@@ -1,6 +1,3 @@
-/* ==========================================================================
-   BlockFusion — Design Tokens
-   ========================================================================== */
 :root{
   --bf-primary: #00E5FF;
   --bf-primary-rgb: 0,229,255;
@@ -60,9 +57,6 @@ a{ color:inherit; text-decoration:none; }
   border-radius:4px;
 }
 
-/* ==========================================================================
-   Animated Background — network canvas + grid + glows
-   ========================================================================== */
 .bg-layer{
   position:fixed; inset:0; z-index:-1; overflow:hidden; background:
     radial-gradient(ellipse 80% 60% at 15% -10%, rgba(var(--bf-secondary-rgb),0.22), transparent 60%),
@@ -89,16 +83,11 @@ a{ color:inherit; text-decoration:none; }
   50%{ transform:translate(40px,30px) scale(1.08); }
 }
 
-/* ==========================================================================
-   Typography
-   ========================================================================== */
+
 h1,h2,h3,h4,h5,.bf-brand-text{ font-family:var(--bf-font-display); letter-spacing:-0.01em; }
 .bf-mono{ font-family:var(--bf-font-mono) !important; }
 .bf-accent{ color:var(--bf-primary); }
 
-/* ==========================================================================
-   Navbar
-   ========================================================================== */
 .bf-navbar{
   background:rgba(15,23,42,0.72);
   backdrop-filter:blur(18px) saturate(140%);
@@ -244,9 +233,6 @@ h1,h2,h3,h4,h5,.bf-brand-text{ font-family:var(--bf-font-display); letter-spacin
 }
 .bf-section-title{ font-size:1.7rem; font-weight:700; margin:0; }
 
-/* ==========================================================================
-   Hero
-   ========================================================================== */
 .bf-hero{
   display:flex; align-items:center; justify-content:space-between; gap:2rem;
   min-height:min(78vh, 680px); padding:4rem 0 2rem;
@@ -292,7 +278,6 @@ h1,h2,h3,h4,h5,.bf-brand-text{ font-family:var(--bf-font-display); letter-spacin
 .btn.bf-btn-ghost:hover{ border-color:rgba(var(--bf-primary-rgb),0.4); color:var(--bf-primary); background:rgba(var(--bf-primary-rgb),0.06); }
 .btn.bf-btn-ghost:disabled{ opacity:0.45; cursor:not-allowed; }
 
-/* Hero node visualization */
 .bf-hero-visual{ position:relative; width:min(420px, 90vw); height:420px; flex-shrink:0; }
 .bf-node-ring{ position:absolute; inset:0; animation:ringRotate 26s linear infinite; }
 @keyframes ringRotate{ to{ transform:rotate(360deg); } }
@@ -319,9 +304,7 @@ h1,h2,h3,h4,h5,.bf-brand-text{ font-family:var(--bf-font-display); letter-spacin
 .bf-node-5{ bottom:26%; left:4%; }
 .bf-node-6{ top:26%; left:4%; }
 
-/* ==========================================================================
-   Stat cards
-   ========================================================================== */
+
 .bf-stat-card{ display:flex; align-items:center; gap:1rem; transition:transform var(--bf-transition), box-shadow var(--bf-transition); }
 .bf-stat-card:hover{ transform:translateY(-4px); box-shadow:0 14px 34px rgba(0,0,0,0.4); }
 .bf-stat-icon{
@@ -345,9 +328,6 @@ h1,h2,h3,h4,h5,.bf-brand-text{ font-family:var(--bf-font-display); letter-spacin
 }
 @keyframes skeletonShine{ 0%{ background-position:100% 50%; } 100%{ background-position:0 50%; } }
 
-/* ==========================================================================
-   Search box
-   ========================================================================== */
 .bf-search-box{
   display:flex; align-items:center; gap:0.5rem; background:rgba(255,255,255,0.03);
   border:1px solid var(--bf-border); border-radius:12px; padding:0.4rem 0.6rem;
@@ -359,9 +339,7 @@ h1,h2,h3,h4,h5,.bf-brand-text{ font-family:var(--bf-font-display); letter-spacin
 }
 .bf-search-box input::placeholder{ color:var(--bf-text-muted); }
 
-/* ==========================================================================
-   Table
-   ========================================================================== */
+
 .bf-table{ color:var(--bf-text); margin-bottom:0; }
 .bf-table thead th{
   border-bottom:1px solid var(--bf-border); color:var(--bf-text-muted); font-size:0.75rem;
@@ -404,9 +382,6 @@ tr.expanded .bf-expand-icon{ transform:rotate(90deg); color:var(--bf-primary); }
 .bf-key-actions{ display:flex; gap:0.5rem; margin-top:0.85rem; flex-wrap:wrap; }
 .bf-hint{ color:var(--bf-text-muted); font-size:0.84rem; margin-top:1rem; }
 
-/* ==========================================================================
-   Forms
-   ========================================================================== */
 .bf-label{ font-size:0.82rem; font-weight:600; color:var(--bf-text-muted); margin-bottom:0.4rem; display:block; }
 .bf-input{
   background:rgba(0,0,0,0.22); border:1px solid var(--bf-border); color:var(--bf-text); border-radius:10px;
@@ -433,9 +408,7 @@ tr.expanded .bf-expand-icon{ transform:rotate(90deg); color:var(--bf-primary); }
 .bf-guide-link{ color:var(--bf-primary); text-decoration:underline; text-underline-offset:2px; }
 .bf-guide-link:hover{ color:var(--bf-secondary); }
 
-/* ==========================================================================
-   Mining
-   ========================================================================== */
+
 .bf-mining-card{
   display:flex; align-items:center; justify-content:space-between; gap:2rem; flex-wrap:wrap;
   padding:2.25rem; overflow:hidden;
@@ -560,9 +533,6 @@ tr.expanded .bf-expand-icon{ transform:rotate(90deg); color:var(--bf-primary); }
   .bf-card{ padding:1.15rem; }
 }
 
-/* ==========================================================================
-   Quick-win Features — QR Code Modal
-   ========================================================================== */
 .bf-qr-overlay{
   position:fixed; inset:0; z-index:2000;
   background:rgba(11,18,34,0.82);
@@ -596,9 +566,7 @@ tr.expanded .bf-expand-icon{ transform:rotate(90deg); color:var(--bf-primary); }
 #qrCodeCanvas{ line-height:0; border-radius:12px; overflow:hidden; }
 #qrCodeCanvas canvas, #qrCodeCanvas img{ border-radius:10px; display:block; }
 
-/* ==========================================================================
-   Quick-win Features — Mempool
-   ========================================================================== */
+
 .bf-mempool-item{
   display:flex; align-items:center; gap:1rem;
   padding:0.85rem 0;
@@ -626,9 +594,6 @@ tr.expanded .bf-expand-icon{ transform:rotate(90deg); color:var(--bf-primary); }
   color:var(--bf-amber); font-size:0.9rem; white-space:nowrap;
 }
 
-/* ==========================================================================
-   Quick-win Features — Transaction Search Results
-   ========================================================================== */
 .bf-search-result{
   display:flex; align-items:center; gap:1rem;
   padding:0.8rem 1rem;
@@ -655,9 +620,6 @@ tr.expanded .bf-expand-icon{ transform:rotate(90deg); color:var(--bf-primary); }
   color:var(--bf-green); font-size:0.9rem; white-space:nowrap;
 }
 
-/* ==========================================================================
-   Quick-win Features — Confirmation Badge on Recent Tx
-   ========================================================================== */
 .bf-confirm-badge{
   display:inline-flex; align-items:center; gap:3px;
   font-size:0.68rem; font-weight:600;
@@ -669,4 +631,4 @@ tr.expanded .bf-expand-icon{ transform:rotate(90deg); color:var(--bf-primary); }
 .bf-confirm-badge.bf-confirm-low{
   background:rgba(255,176,32,0.12);
   color:var(--bf-amber);
-}
+}
